@@ -279,8 +279,8 @@ app.delete('/api/sync/:user', async (req, res) => {
   res.json({ ok: true });
 });
 
-app.listen(PORT, () => {
-  console.log(`服务已启动：http://localhost:${PORT}/login.html`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`服务已启动：0.0.0.0:${PORT}`);
   if (!configured) {
     console.log('提示：尚未配置 SMTP，暂时无法发送验证码。请编辑 .env 后重启。');
     return;

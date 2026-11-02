@@ -862,3 +862,6 @@ button.wt-row:hover{background:var(--tint-hover)}
   .ad-table th,.ad-table td{padding:7px 6px}
   .ad-gen-row input{min-width:90px;flex:0 0 calc(50% - 4px)}
 }
+/* 管理后台入口（profile 页面） */
+.admin-entry-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.admin-entry-row a{white-space:nowrap}

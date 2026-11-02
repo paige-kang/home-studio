@@ -779,6 +779,14 @@ function renderProfilePage() {
         <button class="btn btn-soft" id="syncNow">立即同步</button>
       </div>
       <p class="profile-hint">导出文档用于查看归档，备份 JSON 用于换机或恢复；导入备份会覆盖当前数据，数据同步会覆盖云端快照，操作前建议先备份。同步依赖本机 Node 服务，需通过 node server.js 访问（默认 localhost:8771），静态预览下不可用。</p>
+    </div>
+
+    <div class="card panel profile-section" id="adminEntry">
+      <div class="panel-head"><div><h2>管理后台 <em class="beta-badge">内测版</em></h2><p class="panel-sub">邀请码管理 · 注册用户 · 需管理员密码</p></div></div>
+      <div class="admin-entry-row">
+        <a class="btn btn-primary" href="#/admin"><svg class="ni"><use href="#i-settings"/></svg>进入管理后台</a>
+        <span class="soft-pill">邀请码 · 用户管理</span>
+      </div>
     </div>`;
 
   bindProfileEvents(user, name);

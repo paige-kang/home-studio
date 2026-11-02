@@ -1,5 +1,12 @@
+<<<<<<< HEAD
 # fly.toml app configuration file for shiyi-home-studio
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+=======
+# fly.toml app configuration file generated for shiyi-home-studio on 2026-11-02T08:42:01Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+>>>>>>> 9b4273fb930e4b6e0ae0c2b289e40a571c4d94a9
 
 app = 'shiyi-home-studio'
 primary_region = 'ams'
@@ -14,6 +21,7 @@ primary_region = 'ams'
   min_machines_running = 0
   processes = ['app']
 
+<<<<<<< HEAD
 # 环境变量
 [env]
   PORT = "8080"
@@ -26,6 +34,8 @@ primary_region = 'ams'
   source = "home-studio-sync"
   destination = "/data"
 
+=======
+>>>>>>> 9b4273fb930e4b6e0ae0c2b289e40a571c4d94a9
 [[vm]]
   memory = '1gb'
   cpu_kind = 'shared'

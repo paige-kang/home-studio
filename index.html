@@ -89,6 +89,7 @@ try {
       <div class="nav-group">
         <label class="nav-label">账号</label>
         <button class="nav-item" data-route="profile"><svg class="ni"><use href="#i-user"/></svg><span>个人中心</span></button>
+        <button class="nav-item nav-item--admin" data-route="admin"><svg class="ni"><use href="#i-settings"/></svg><span>管理后台</span><em class="nav-tag">β</em></button>
       </div>
     </nav>
 
@@ -266,6 +267,14 @@ try {
           <div><h1>个人中心</h1><p>管理头像、界面色系，以及备份与演示数据，只对当前登录的账号生效。</p></div>
         </div>
         <div id="profileBody"></div>
+      </section>
+
+      <section class="view" id="view-admin">
+        <div class="page-head">
+          <div><h1>管理后台 <em class="beta-badge">内测版</em></h1><p>邀请码管理、注册用户管理。需管理员密码登录。</p></div>
+          <button class="btn btn-ghost" id="adminLogout" style="display:none">退出管理员</button>
+        </div>
+        <div id="adminBody"></div>
       </section>
     </div>
   </main>

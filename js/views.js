@@ -908,3 +908,212 @@ function bindProfileEvents(user, name) {
     }
   };
 }
+
+/* ---------------- 管理后台 ---------------- */
+const Admin = {
+  TOKEN_KEY: 'xhs-home-admin-token',
+  token() { try { return sessionStorage.getItem(this.TOKEN_KEY) || ''; } catch (e) { return ''; } },
+  setToken(t) { try { if (t) sessionStorage.setItem(this.TOKEN_KEY, t); else sessionStorage.removeItem(this.TOKEN_KEY); } catch (e) {} },
+  async req(method, path, body) {
+    const opts = { method, headers: { 'Content-Type': 'application/json', 'x-admin-token': this.token() } };
+    if (body != null) opts.body = JSON.stringify(body);
+    const r = await fetch('/api/admin' + path, opts);
+    const data = await r.json().catch(() => ({}));
+    if (r.status === 401) { this.setToken(''); throw new Error('unauthorized'); }
+    if (!r.ok) throw new Error(data.msg || '请求失败');
+    return data;
+  },
+  fmtDate(s) { if (!s) return '-'; const d = new Date(s); return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); },
+  fmtUses(entry) { const m = entry.maxUses; return m != null ? `${entry.uses || 0}/${m}` : (entry.uses || 0); },
+  fmtStatus(entry) {
+    if (entry.enabled === false) return '<span class="ad-tag off">已禁用</span>';
+    if (entry.expiresAt && new Date(entry.expiresAt) < new Date()) return '<span class="ad-tag off">已过期</span>';
+    if (entry.maxUses != null && (entry.uses || 0) >= entry.maxUses) return '<span class="ad-tag off">已用尽</span>';
+    return '<span class="ad-tag on">可用</span>';
+  }
+};
+
+function renderAdminPage() {
+  const body = document.getElementById('adminBody');
+  const logoutBtn = document.getElementById('adminLogout');
+  if (!Admin.token()) {
+    logoutBtn.style.display = 'none';
+    body.innerHTML = `
+      <div class="admin-login">
+        <div class="admin-login-card">
+          <div class="admin-login-icon">🔐</div>
+          <h2>管理员登录</h2>
+          <p>内测邀请码管理与用户管理，仅管理员可访问。</p>
+          <div class="admin-login-form">
+            <input type="password" id="adminPw" placeholder="管理员密码" autocomplete="current-password">
+            <button class="btn btn-primary" id="adminLoginBtn">登录</button>
+          </div>
+          <p class="admin-login-hint">默认密码：<code>shiyi@2026</code>（请在服务器环境变量 ADMIN_PASSWORD 修改）</p>
+          <p class="admin-login-msg" id="adminLoginMsg"></p>
+        </div>
+      </div>`;
+    const pwEl = document.getElementById('adminPw');
+    pwEl.focus();
+    document.getElementById('adminLoginBtn').onclick = async () => {
+      const pw = pwEl.value;
+      const msg = document.getElementById('adminLoginMsg');
+      try {
+        const r = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data.ok) { msg.textContent = data.msg || '密码错误'; return; }
+        Admin.setToken(data.token);
+        renderAdminPage();
+      } catch (e) { msg.textContent = '连接失败'; }
+    };
+    pwEl.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('adminLoginBtn').click(); });
+    return;
+  }
+  logoutBtn.style.display = '';
+  logoutBtn.onclick = async () => { try { await Admin.req('POST', '/logout'); } catch (e) {} Admin.setToken(''); renderAdminPage(); };
+
+  // 已登录：tab 界面
+  body.innerHTML = `
+    <div class="admin-tabs">
+      <button class="ad-tab is-active" data-ad-tab="invites">邀请码管理</button>
+      <button class="ad-tab" data-ad-tab="users">注册用户</button>
+      <span class="ad-spacer"></span>
+      <span class="ad-info" id="adminInfo">加载中…</span>
+    </div>
+    <div id="adminTabContent"></div>`;
+  let currentTab = 'invites';
+  const content = document.getElementById('adminTabContent');
+
+  document.querySelectorAll('.ad-tab').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.ad-tab').forEach(b => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      currentTab = btn.dataset.adTab;
+      renderTab(currentTab);
+    };
+  });
+
+  async function renderTab(tab) {
+    if (tab === 'invites') {
+      renderInvitesTab();
+    } else if (tab === 'users') {
+      renderUsersTab();
+    }
+  }
+
+  async function renderInvitesTab() {
+    content.innerHTML = `<div class="ad-generate">
+      <h3>生成邀请码</h3>
+      <div class="ad-gen-row">
+        <input type="text" id="newCode" placeholder="自定义（留空自动生成）">
+        <input type="text" id="newNote" placeholder="备注（如：小红书粉丝群1）">
+        <input type="number" id="newMax" placeholder="最大使用次数（留空不限制）" min="1">
+        <input type="date" id="newExpire">
+        <input type="number" id="newCount" value="1" min="1" max="50" title="一次生成几个">
+        <button class="btn btn-primary" id="genBtn">生成</button>
+      </div>
+    </div>
+    <div class="ad-list-wrap">
+      <table class="ad-table">
+        <thead><tr>
+          <th>邀请码</th><th>备注</th><th>创建时间</th><th>过期时间</th><th>使用</th><th>状态</th><th>来源</th><th>操作</th>
+        </tr></thead>
+        <tbody id="codeRows"><tr><td colspan="8" class="ad-loading">加载中…</td></tr></tbody>
+      </table>
+    </div>`;
+
+    document.getElementById('genBtn').onclick = async () => {
+      const code = document.getElementById('newCode').value.trim();
+      const note = document.getElementById('newNote').value.trim();
+      const maxUses = document.getElementById('newMax').value;
+      const expiresAt = document.getElementById('newExpire').value;
+      const count = Math.max(1, Math.min(50, Number(document.getElementById('newCount').value) || 1));
+      try {
+        await Admin.req('POST', '/invites', { code: code || undefined, note, maxUses: maxUses || null, expiresAt: expiresAt || null, count });
+        renderInvitesTab();
+        toast(`已生成 ${count} 个邀请码`);
+      } catch (e) { toast(e.message); }
+    };
+
+    let data;
+    try { data = await Admin.req('GET', '/invites'); }
+    catch (e) { content.innerHTML = `<p class="err">加载失败：${e.message}</p>`; return; }
+
+    document.getElementById('adminInfo').textContent = `共 ${data.codes.length} 个邀请码`;
+    const tbody = document.getElementById('codeRows');
+    if (!data.codes.length) { tbody.innerHTML = `<tr><td colspan="8" class="ad-empty">暂无邀请码</td></tr>`; return; }
+    tbody.innerHTML = data.codes.map(c => `
+      <tr data-code="${c.code}">
+        <td><code class="ad-code">${c.code}</code></td>
+        <td><input class="ad-edit ad-note" value="${(c.note || '').replace(/"/g, '&quot;')}" title="点击修改"></td>
+        <td class="ad-ts">${Admin.fmtDate(c.createdAt)}</td>
+        <td class="ad-ts">${c.expiresAt ? Admin.fmtDate(c.expiresAt) : '—'}</td>
+        <td class="ad-uses">${Admin.fmtUses(c)}</td>
+        <td>${Admin.fmtStatus(c)}</td>
+        <td><span class="ad-src ad-src-${c.source || 'admin'}">${c.source === 'default' ? '默认' : '自建'}</span></td>
+        <td class="ad-actions">
+          <button class="ad-act ad-toggle" title="启用/禁用">${c.enabled === false ? '启用' : '禁用'}</button>
+          <button class="ad-act ad-copy" title="复制邀请码">复制</button>
+          <button class="ad-act ad-del" title="删除">删除</button>
+        </td>
+      </tr>`).join('');
+
+    // 事件绑定
+    tbody.querySelectorAll('tr').forEach(tr => {
+      const code = tr.dataset.code;
+      const c = data.codes.find(x => x.code === code);
+      tr.querySelector('.ad-note').addEventListener('change', async e => {
+        try { await Admin.req('PATCH', `/invites/${code}`, { note: e.target.value }); }
+        catch (err) { toast(err.message); }
+      });
+      tr.querySelector('.ad-toggle').onclick = async () => {
+        try { await Admin.req('PATCH', `/invites/${code}`, { enabled: c.enabled === false }); renderInvitesTab(); }
+        catch (err) { toast(err.message); }
+      };
+      tr.querySelector('.ad-copy').onclick = () => { navigator.clipboard?.writeText(code); toast('已复制 ' + code); };
+      tr.querySelector('.ad-del').onclick = async () => {
+        if (!confirm(`确定删除邀请码 ${code}？`)) return;
+        try { await Admin.req('DELETE', `/invites/${code}`); renderInvitesTab(); }
+        catch (err) { toast(err.message); }
+      };
+    });
+  }
+
+  async function renderUsersTab() {
+    content.innerHTML = `<div class="ad-list-wrap">
+      <table class="ad-table">
+        <thead><tr>
+          <th>邮箱</th><th>账号</th><th>使用的邀请码</th><th>注册时间</th><th>操作</th>
+        </tr></thead>
+        <tbody id="userRows"><tr><td colspan="5" class="ad-loading">加载中…</td></tr></tbody>
+      </table>
+    </div>`;
+    let data;
+    try { data = await Admin.req('GET', '/users'); }
+    catch (e) { content.innerHTML = `<p class="err">加载失败：${e.message}</p>`; return; }
+    document.getElementById('adminInfo').textContent = `共 ${data.users.length} 个注册用户`;
+    const tbody = document.getElementById('userRows');
+    if (!data.users.length) { tbody.innerHTML = `<tr><td colspan="5" class="ad-empty">暂无注册用户</td></tr>`; return; }
+    // 去重：同一邮箱多次注册只保留最新一次
+    const seen = new Set();
+    const deduped = data.users.filter(u => { if (seen.has(u.email)) return false; seen.add(u.email); return true; }).reverse();
+    tbody.innerHTML = deduped.map(u => `
+      <tr data-email="${u.email}">
+        <td><a href="mailto:${u.email}">${u.email}</a></td>
+        <td>${u.user || '—'}</td>
+        <td><code class="ad-code">${u.inviteUsed || '—'}</code></td>
+        <td class="ad-ts">${Admin.fmtDate(u.registeredAt)}</td>
+        <td class="ad-actions">
+          <button class="ad-act ad-del" title="删除记录">删除</button>
+        </td>
+      </tr>`).join('');
+    tbody.querySelectorAll('tr').forEach(tr => {
+      const email = tr.dataset.email;
+      tr.querySelector('.ad-del').onclick = async () => {
+        if (!confirm(`删除 ${email} 的注册记录？（不会删除用户本地数据）`)) return;
+        try { await Admin.req('DELETE', `/users/${encodeURIComponent(email)}`); renderUsersTab(); }
+        catch (err) { toast(err.message); }
+      };
+    });
+  }
+  renderTab(currentTab);
+}

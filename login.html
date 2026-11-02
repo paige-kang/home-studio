@@ -293,7 +293,7 @@ try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.d
             const r = await fetch('api/verify-code', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email, code, invite })
+              body: JSON.stringify({ email, code, invite, user })
             });
             const data = await r.json().catch(() => ({}));
             if (r.ok && data.ok) { doRegister(email); return; }

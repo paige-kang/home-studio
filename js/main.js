@@ -2,7 +2,8 @@
 const ROUTE_NAMES = {
   dashboard: '首页总览', ideas: '选题库', notes: '内容流水线', assets: '素材图库',
   samples: '样品软装库', scenes: '布景道具库', deals: '商务合作', lessons: '复盘知识库',
-  finance: '收支台账', todos: '待办清单', calendar: '日历排期', profile: '个人中心'
+  finance: '收支台账', todos: '待办清单', calendar: '日历排期', profile: '个人中心',
+  admin: '管理后台'
 };
 
 function accountName() {
@@ -22,11 +23,13 @@ function navigate(route, opts) {
     dashboard: document.getElementById('view-dashboard'),
     page: document.getElementById('view-page'),
     calendar: document.getElementById('view-calendar'),
-    profile: document.getElementById('view-profile')
+    profile: document.getElementById('view-profile'),
+    admin: document.getElementById('view-admin')
   };
   const target = route === 'dashboard' ? 'dashboard'
     : route === 'calendar' ? 'calendar'
-    : route === 'profile' ? 'profile' : 'page';
+    : route === 'profile' ? 'profile'
+    : route === 'admin' ? 'admin' : 'page';
   Object.entries(views).forEach(([k, v]) => v.classList.toggle('is-active', k === target));
   renderCurrent();
   closeBell();
@@ -38,6 +41,7 @@ function renderCurrent() {
   if (PAGE.route === 'dashboard') renderDashboard();
   else if (PAGE.route === 'calendar') renderCalendarPage();
   else if (PAGE.route === 'profile') renderProfilePage();
+  else if (PAGE.route === 'admin') { if (typeof renderAdminPage === 'function') renderAdminPage(); }
   else renderPage(PAGE.route);
 }
 

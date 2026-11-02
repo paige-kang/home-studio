@@ -45,7 +45,99 @@ const INVITE_CODES = (process.env.INVITE_CODES || '')
   .concat(DEFAULT_INVITE_CODES)
   .filter((v, i, a) => a.indexOf(v) === i);
 function validInvite(code) {
-  return typeof code === 'string' && INVITE_CODES.includes(code.trim().toUpperCase());
+  code = typeof code === 'string' ? code.trim().toUpperCase() : '';
+  if (!code) return false;
+  // 先查落盘的管理员码（优先级高，可禁用/过期）
+  try {
+    const admin = readAdminData();
+    const entry = admin.codes.find(c => c.code === code);
+    if (entry) {
+      if (entry.enabled === false) return false;
+      if (entry.expiresAt && new Date(entry.expiresAt) < new Date()) return false;
+      if (entry.maxUses != null && entry.uses >= entry.maxUses) return false;
+      return true;
+    }
+  } catch (e) { /* 忽略，fallback 到默认列表 */ }
+  return INVITE_CODES.includes(code);
+}
+
+// —— 管理员后台 ——
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'shiyi@2026';
+const ADMIN_SECRET = process.env.ADMIN_SECRET || crypto.randomBytes(24).toString('hex');
+const ADMIN_DATA_FILE = path.join(path.dirname(SYNC_DIR), 'admin.json');
+const ADMIN_TOKENS = new Map(); // token → { createdAt }
+const ADMIN_TOKEN_TTL = 12 * 3600 * 1000; // 12 小时
+
+function readAdminData() {
+  try {
+    const raw = fs.readFileSync(ADMIN_DATA_FILE, 'utf8');
+    const d = JSON.parse(raw);
+    if (!d.codes) d.codes = [];
+    if (!d.users) d.users = [];
+    return d;
+  } catch (e) {
+    // 首次初始化：把默认邀请码落盘
+    const bootstrap = {
+      codes: DEFAULT_INVITE_CODES.map(code => ({
+        code,
+        note: code === 'HOME2026' ? '拾一通用码' : code === 'SHIYI88' ? '亲友' : code === 'HOMESTUDIO' ? '家居工作室' : '小红书好友',
+        createdAt: new Date().toISOString(),
+        expiresAt: null,
+        uses: 0,
+        maxUses: null,
+        enabled: true,
+        source: 'default'
+      })),
+      users: []
+    };
+    try {
+      fs.mkdirSync(path.dirname(ADMIN_DATA_FILE), { recursive: true });
+      fs.writeFileSync(ADMIN_DATA_FILE, JSON.stringify(bootstrap, null, 2));
+    } catch (err) { /* 只读文件系统 */ }
+    return bootstrap;
+  }
+}
+function writeAdminData(d) {
+  try {
+    fs.mkdirSync(path.dirname(ADMIN_DATA_FILE), { recursive: true });
+    fs.writeFileSync(ADMIN_DATA_FILE, JSON.stringify(d, null, 2));
+  } catch (err) { /* 只读文件系统 */ }
+}
+function generateToken() {
+  const t = crypto.randomBytes(16).toString('hex');
+  ADMIN_TOKENS.set(t, { createdAt: Date.now() });
+  return t;
+}
+function requireAdmin(req, res, next) {
+  const auth = req.headers['x-admin-token'] || String((req.query && req.query.token) || '');
+  const info = ADMIN_TOKENS.get(auth);
+  if (!auth || !info) return res.status(401).json({ ok: false, msg: '请先登录管理员' });
+  if (Date.now() - info.createdAt > ADMIN_TOKEN_TTL) {
+    ADMIN_TOKENS.delete(auth);
+    return res.status(401).json({ ok: false, msg: '管理员登录已过期，请重新登录' });
+  }
+  next();
+}
+function consumeInvite(code, user, email) {
+  try {
+    const admin = readAdminData();
+    const entry = admin.codes.find(c => c.code === code);
+    if (entry) entry.uses = (entry.uses || 0) + 1;
+    admin.users.push({
+      email: String(email || '').toLowerCase(),
+      user: String(user || '').trim(),
+      inviteUsed: code,
+      registeredAt: new Date().toISOString()
+    });
+    writeAdminData(admin);
+  } catch (e) { /* 忽略存储失败 */ }
+}
+
+function randomInviteCode(len = 8) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < len; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
 }
 
 const smtpUser = (process.env.SMTP_USER || '').trim();
@@ -149,6 +241,85 @@ app.post('/api/verify-invite', (req, res) => {
   res.json({ ok: true, msg: '邀请码有效' });
 });
 
+// —— 管理员后台 API ——
+app.post('/api/admin/login', (req, res) => {
+  const pw = String((req.body && req.body.password) || '');
+  if (!pw) return res.status(400).json({ ok: false, msg: '请填写管理员密码' });
+  if (pw !== ADMIN_PASSWORD) return res.status(401).json({ ok: false, msg: '密码不正确' });
+  res.json({ ok: true, token: generateToken() });
+});
+app.post('/api/admin/logout', requireAdmin, (req, res) => {
+  const auth = req.headers['x-admin-token'] || '';
+  ADMIN_TOKENS.delete(auth);
+  res.json({ ok: true });
+});
+
+// 邀请码管理
+app.get('/api/admin/invites', requireAdmin, (req, res) => {
+  const admin = readAdminData();
+  res.json({ ok: true, codes: admin.codes });
+});
+app.post('/api/admin/invites', requireAdmin, (req, res) => {
+  let { code, note, maxUses, expiresAt, count = 1 } = (req.body || {});
+  const admin = readAdminData();
+  const created = [];
+  const n = Math.min(Math.max(Number(count) || 1, 1), 50);
+  for (let i = 0; i < n; i++) {
+    const c = (code && i === 0) ? code.trim().toUpperCase() : randomInviteCode();
+    if (admin.codes.find(x => x.code === c)) {
+      return res.status(409).json({ ok: false, msg: `邀请码 ${c} 已存在` });
+    }
+    const entry = {
+      code: c,
+      note: note ? String(note) : '',
+      createdAt: new Date().toISOString(),
+      expiresAt: expiresAt ? String(expiresAt) : null,
+      uses: 0,
+      maxUses: maxUses != null && maxUses !== '' ? Number(maxUses) : null,
+      enabled: true,
+      source: 'admin'
+    };
+    admin.codes.push(entry);
+    created.push(entry);
+  }
+  writeAdminData(admin);
+  res.json({ ok: true, codes: created });
+});
+app.patch('/api/admin/invites/:code', requireAdmin, (req, res) => {
+  const admin = readAdminData();
+  const entry = admin.codes.find(c => c.code === req.params.code.toUpperCase());
+  if (!entry) return res.status(404).json({ ok: false, msg: '邀请码不存在' });
+  const b = req.body || {};
+  if (b.note != null) entry.note = String(b.note);
+  if (b.enabled != null) entry.enabled = !!b.enabled;
+  if (b.maxUses != null) entry.maxUses = b.maxUses === '' ? null : Number(b.maxUses);
+  if (b.expiresAt != null) entry.expiresAt = b.expiresAt === '' ? null : String(b.expiresAt);
+  writeAdminData(admin);
+  res.json({ ok: true, code: entry });
+});
+app.delete('/api/admin/invites/:code', requireAdmin, (req, res) => {
+  const admin = readAdminData();
+  const before = admin.codes.length;
+  admin.codes = admin.codes.filter(c => c.code !== req.params.code.toUpperCase());
+  if (admin.codes.length === before) return res.status(404).json({ ok: false, msg: '邀请码不存在' });
+  writeAdminData(admin);
+  res.json({ ok: true });
+});
+
+// 用户管理
+app.get('/api/admin/users', requireAdmin, (req, res) => {
+  const admin = readAdminData();
+  res.json({ ok: true, users: admin.users });
+});
+app.delete('/api/admin/users/:email', requireAdmin, (req, res) => {
+  const admin = readAdminData();
+  const before = admin.users.length;
+  admin.users = admin.users.filter(u => u.email !== decodeURIComponent(req.params.email).toLowerCase());
+  if (admin.users.length === before) return res.status(404).json({ ok: false, msg: '用户不存在' });
+  writeAdminData(admin);
+  res.json({ ok: true });
+});
+
 // 内测邀请码白名单（邮箱白名单，不用邀请码也能注册）
 const INVITE_EMAIL_WHITELIST = new Set([
   // 可在此添加允许免邀请码注册的邮箱
@@ -225,6 +396,12 @@ app.post('/api/verify-code', requireInvite, (req, res) => {
     return res.status(400).json({ ok: false, msg: '验证码不正确，请检查后重试' });
   }
   codes.delete(email);
+  // 记录注册消耗 + 用户信息
+  try {
+    const invite = String((req.body && req.body.invite) || '').trim().toUpperCase();
+    const user = String((req.body && req.body.user) || '').trim();
+    consumeInvite(invite, user, email);
+  } catch (e) { /* 忽略存储失败 */ }
   res.json({ ok: true });
 });
 

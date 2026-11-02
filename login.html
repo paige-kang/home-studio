@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#B58C6B">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>登录 · 拾一的家居工作台</title>
+<script>
+try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.documentElement.setAttribute('data-theme', __th); } catch (e) { }
+</script>
+<link rel="stylesheet" href="css/base.css?v=2026103120">
+<link rel="stylesheet" href="css/auth.css?v=2026103120">
+</head>
+<body class="auth-body">
+<main class="auth-card">
+  <aside class="auth-brand">
+    <div class="mini-brand">
+      <span class="logo">拾</span>
+      <div><strong>拾一的工作台</strong><small>HOME STUDIO</small></div>
+    </div>
+    <span class="eyebrow">WELCOME BACK</span>
+    <h1>把一间屋子，<br>慢慢讲给更多人听。</h1>
+    <p>选题、样品、拍摄、发布、复盘，都收在这一张桌子上。登录后回到你上周没写完的那条笔记。</p>
+    <div class="auth-stats">
+      <div><b>64</b><span>粉丝</span></div>
+      <div><b>3546</b><span>获赞与收藏</span></div>
+      <div><b>10</b><span>关注</span></div>
+    </div>
+  </aside>
+
+  <section class="auth-form">
+    <span class="eyebrow">SIGN IN</span>
+    <h2>登录工作台</h2>
+    <p class="auth-sub">用演示账号进入你的家居创作中控台，数据默认保存在本机，也可开启同步到本地服务。</p>
+    <div class="auth-alert" id="loginAlert"></div>
+    <form id="loginForm" novalidate>
+      <div class="auth-fields">
+        <div class="auth-input">
+          <label for="username">账号</label>
+          <input id="username" name="username" type="text" inputmode="text" autocomplete="username" placeholder="请输入账号" value="shiyi">
+        </div>
+        <div class="auth-input">
+          <label for="password">密码</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" value="home123">
+        </div>
+      </div>
+      <div class="auth-row">
+        <label class="auth-check"><input type="checkbox" id="remember" checked>记住登录状态</label>
+        <button type="button" class="auth-link" id="forgotLink">忘记密码？</button>
+      </div>
+      <p class="auth-msg" id="loginMsg"></p>
+      <button class="auth-submit" type="submit">进入工作台</button>
+      <div class="auth-links">
+        <span>还没有账号？</span>
+        <button type="button" class="auth-link" id="registerLink">注册账号</button>
+      </div>
+      <div class="auth-switch" id="loginSwitch"></div>
+      <p class="auth-hint">演示账号：<b>shiyi</b> / <b>home123</b>
+        <button type="button" class="auth-link auth-inline" id="fillDemo">一键填入</button><br>
+        本页为本地演示登录；账号与工作台数据保存在本机，注册验证码由本机 node 服务发送，不会上传到第三方。
+      </p>
+    </form>
+  </section>
+</main>
+
+<div class="auth-modal" id="authModal" hidden>
+  <div class="auth-modal-mask" data-close></div>
+  <div class="auth-modal-card" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+    <div class="auth-modal-head">
+      <h3 id="authModalTitle">忘记密码</h3>
+      <button class="auth-modal-x" type="button" data-close aria-label="关闭">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="auth-modal-body" id="authModalBody"></div>
+  </div>
+</div>
+
+<script src="js/auth.js?v=2026103120"></script>
+<script>
+(function () {
+  const form = document.getElementById('loginForm');
+  const userEl = document.getElementById('username');
+  const passEl = document.getElementById('password');
+  const rememberEl = document.getElementById('remember');
+  const msgEl = document.getElementById('loginMsg');
+  const alertEl = document.getElementById('loginAlert');
+  const switchEl = document.getElementById('loginSwitch');
+  const modal = document.getElementById('authModal');
+  const modalTitle = document.getElementById('authModalTitle');
+  const modalBody = document.getElementById('authModalBody');
+
+  const session = Auth.current();
+  if (session) {
+    alertEl.textContent = '你已以「' + session.name + '」登录，可直接进入工作台。';
+    alertEl.classList.add('is-show');
+    switchEl.classList.add('is-show');
+    switchEl.innerHTML = '当前账号已登录 · <a class="auth-link" href="index.html">直接进入工作台 →</a>';
+  }
+
+  function clearLoginMsg() { msgEl.textContent = ''; }
+
+  document.getElementById('fillDemo').addEventListener('click', () => {
+    userEl.value = 'shiyi';
+    passEl.value = 'home123';
+    clearLoginMsg();
+    userEl.focus();
+  });
+
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    clearLoginMsg();
+    const res = Auth.login(userEl.value, passEl.value, rememberEl.checked);
+    if (!res.ok) {
+      msgEl.textContent = res.msg;
+      passEl.focus();
+      passEl.select();
+      return;
+    }
+    location.replace('index.html');
+  });
+
+  [userEl, passEl].forEach(el => el.addEventListener('input', clearLoginMsg));
+
+  /* ---- 忘记密码 / 注册账号 ---- */
+  let codeTimer = null;
+  let regCooldown = 0;
+
+  function closeModal() {
+    modal.hidden = true;
+    modalBody.innerHTML = '';
+    if (codeTimer) { clearInterval(codeTimer); codeTimer = null; }
+    regCooldown = 0;
+  }
+  function openModal(kind) {
+    modal.hidden = false;
+    modalTitle.textContent = kind === 'reset' ? '忘记密码' : '注册账号';
+    modalBody.innerHTML = kind === 'reset' ? resetTpl() : registerTpl();
+    bindModal(kind);
+    const first = modalBody.querySelector('input');
+    if (first) setTimeout(() => first.focus(), 30);
+  }
+
+  function resetTpl() {
+    return `
+      <p class="auth-modal-tip">本地演示没有邮件找回。注册过的账号可以直接重设密码；演示账号密码固定为 shiyi / home123。</p>
+      <form class="auth-fields" id="resetForm" novalidate>
+        <div class="auth-input"><label for="resetUser">账号</label><input id="resetUser" type="text" autocomplete="username" placeholder="请输入要找回的账号"></div>
+        <div class="auth-input"><label for="resetPass">新密码</label><input id="resetPass" type="password" autocomplete="new-password" placeholder="至少 6 位"></div>
+        <p class="auth-msg" id="resetMsg"></p>
+        <div class="auth-modal-actions">
+          <button type="button" class="btn btn-ghost" data-close>取消</button>
+          <button type="submit" class="btn btn-primary">重置密码</button>
+        </div>
+      </form>`;
+  }
+
+  function registerTpl() {
+    return `
+      <p class="auth-modal-tip">账号保存在本机浏览器；验证码由你本机的 node 服务发送，5 分钟内有效。登录后可在个人中心开启数据同步到该本地服务，不会上传到第三方。</p>
+      <form class="auth-fields" id="registerForm" novalidate>
+        <div class="auth-input"><label for="regUser">账号</label><input id="regUser" type="text" autocomplete="username" placeholder="至少 3 个字符"></div>
+        <div class="auth-input"><label for="regName">昵称</label><input id="regName" type="text" placeholder="例如：拾一"></div>
+        <div class="auth-input"><label for="regEmail">邮箱</label><input id="regEmail" type="email" autocomplete="email" placeholder="用于接收验证码"></div>
+        <div class="auth-input">
+          <label for="regCode">邮箱验证码</label>
+          <div class="auth-code-row">
+            <input id="regCode" type="text" inputmode="numeric" maxlength="6" placeholder="6 位验证码">
+            <button type="button" class="btn btn-ghost auth-code-btn" id="sendCode">发送验证码</button>
+          </div>
+          <p class="auth-code-hint" id="codeHint"></p>
+        </div>
+        <div class="auth-input"><label for="regPass">密码</label><input id="regPass" type="password" autocomplete="new-password" placeholder="至少 6 位"></div>
+        <p class="auth-msg" id="regMsg"></p>
+        <div class="auth-modal-actions">
+          <button type="button" class="btn btn-ghost" data-close>取消</button>
+          <button type="submit" class="btn btn-primary">注册并进入</button>
+        </div>
+      </form>`;
+  }
+
+  function bindModal(kind) {
+    modalBody.querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', closeModal));
+    const resetUser = modalBody.querySelector('#resetUser');
+    if (resetUser) resetUser.value = userEl.value.trim();
+    const resetForm = modalBody.querySelector('#resetForm');
+    if (resetForm) {
+      resetForm.addEventListener('submit', e => {
+        e.preventDefault();
+        const res = Auth.resetPassword(modalBody.querySelector('#resetUser').value, modalBody.querySelector('#resetPass').value);
+        const msg = modalBody.querySelector('#resetMsg');
+        if (!res.ok) { msg.textContent = res.msg; return; }
+        userEl.value = modalBody.querySelector('#resetUser').value.trim();
+        passEl.value = '';
+        closeModal();
+        alertEl.textContent = '密码已重置，请用新密码登录。';
+        alertEl.classList.add('is-show');
+        passEl.focus();
+      });
+    }
+    const registerForm = modalBody.querySelector('#registerForm');
+    if (registerForm) {
+      const emailEl = modalBody.querySelector('#regEmail');
+      const codeEl = modalBody.querySelector('#regCode');
+      const sendBtn = modalBody.querySelector('#sendCode');
+      const hintEl = modalBody.querySelector('#codeHint');
+      const msg = modalBody.querySelector('#regMsg');
+
+      sendBtn.addEventListener('click', async () => {
+        msg.textContent = '';
+        const email = emailEl.value.trim();
+        if (!Auth.validEmail(email)) {
+          msg.textContent = '请先填写有效的邮箱地址';
+          emailEl.focus();
+          return;
+        }
+        if (regCooldown > 0) return;
+        sendBtn.disabled = true;
+        sendBtn.textContent = '发送中…';
+        let data = {};
+        try {
+          const r = await fetch('api/send-code', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+          });
+          data = await r.json().catch(() => ({}));
+          if (!r.ok || !data.ok) {
+            msg.textContent = data.msg || '验证码发送失败，请改用 node server.js 启动的服务';
+            sendBtn.disabled = false;
+            sendBtn.textContent = '发送验证码';
+            return;
+          }
+        } catch (err) {
+          msg.textContent = '无法连接验证码服务，请用 node server.js 启动后重试';
+          sendBtn.disabled = false;
+          sendBtn.textContent = '发送验证码';
+          return;
+        }
+        hintEl.textContent = `验证码已发送至 ${email}，5 分钟内有效，请查收（也看看垃圾箱）。`;
+        regCooldown = 60;
+        sendBtn.disabled = true;
+        sendBtn.textContent = '重新发送 60s';
+        if (codeTimer) { clearInterval(codeTimer); codeTimer = null; }
+        codeTimer = setInterval(() => {
+          regCooldown -= 1;
+          if (regCooldown <= 0) {
+            regCooldown = 0;
+            sendBtn.disabled = false;
+            sendBtn.textContent = '重新发送';
+            if (codeTimer) { clearInterval(codeTimer); codeTimer = null; }
+            return;
+          }
+          sendBtn.textContent = `重新发送 ${regCooldown}s`;
+        }, 1000);
+      });
+
+      registerForm.addEventListener('submit', async e => {
+        e.preventDefault();
+        msg.textContent = '';
+        const email = emailEl.value.trim();
+        const code = codeEl.value.trim();
+        const user = modalBody.querySelector('#regUser').value.trim();
+        const pass = modalBody.querySelector('#regPass').value;
+        const name = modalBody.querySelector('#regName').value.trim();
+
+        if (!user || user.length < 3) { msg.textContent = '账号至少 3 个字符'; return; }
+        if (!pass || pass.length < 6) { msg.textContent = '密码至少 6 位'; return; }
+
+        const doRegister = (verifiedEmail) => {
+          const res = Auth.register(user, pass, name || user, rememberEl.checked, verifiedEmail || '');
+          if (!res.ok) { msg.textContent = res.msg; return false; }
+          if (codeTimer) { clearInterval(codeTimer); codeTimer = null; }
+          location.replace('index.html');
+          return true;
+        };
+
+        // 先尝试邮箱验证码服务
+        if (Auth.validEmail(email) && code) {
+          try {
+            const r = await fetch('api/verify-code', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, code })
+            });
+            const data = await r.json().catch(() => ({}));
+            if (r.ok && data.ok) { doRegister(email); return; }
+            msg.textContent = data.msg || '验证码校验失败';
+            return;
+          } catch (err) {
+            // 没有服务 → 纯本地注册（邮箱仅作留档）
+            msg.textContent = '未检测到本地服务，改为仅本机注册';
+          }
+        } else if (fetchAvailable()) {
+          // 服务可用但没填邮箱验证码
+          msg.textContent = '请先填写有效邮箱和收到的 6 位验证码';
+          return;
+        }
+
+        // 纯本地注册（离线 / 无服务）
+        if (!email) {
+          msg.textContent = '离线注册建议填一个邮箱留档，可跳过';
+        }
+        doRegister(email);
+      });
+    }
+  }
+
+  async function fetchAvailable() {
+    try {
+      const r = await fetch('api/health', { cache: 'no-store' });
+      return r.ok;
+    } catch (e) { return false; }
+  }
+
+  document.getElementById('forgotLink').addEventListener('click', () => openModal('reset'));
+  document.getElementById('registerLink').addEventListener('click', () => openModal('register'));
+  modal.querySelector('.auth-modal-mask').addEventListener('click', closeModal);
+  modal.querySelector('.auth-modal-x').addEventListener('click', closeModal);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !modal.hidden) closeModal();
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#B58C6B">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>退出登录 · 拾一的家居工作台</title>
+<script>
+try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.documentElement.setAttribute('data-theme', __th); } catch (e) { }
+</script>
+<link rel="stylesheet" href="css/base.css?v=2026103120">
+<link rel="stylesheet" href="css/auth.css?v=2026103120">
+</head>
+<body class="auth-body">
+<main class="auth-card is-narrow">
+  <section class="logout-pane" id="logoutPane"></section>
+</main>
+
+<script src="js/auth.js?v=2026103120"></script>
+<script src="js/store.js?v=2026103120"></script>
+<script src="js/profile.js?v=2026103120"></script>
+<script>
+(function () {
+  const pane = document.getElementById('logoutPane');
+  const session = Auth.current();
+
+  const icon = (out) => `<div class="logout-icon${out ? ' is-out' : ''}">
+    <svg viewBox="0 0 24 24"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4"/><path d="M10 8l-4 4 4 4"/><path d="M6 12h9"/></svg>
+  </div>`;
+
+  const userChip = (s) => `<div class="logout-user"><span class="ava">${esc((s.name || s.user).slice(0, 1))}</span><span>${esc(s.name || s.user)} · 已登录</span></div>`;
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function render(state, extra) {
+    if (state === 'confirm') {
+      pane.innerHTML = `
+        ${icon(false)}
+        <h2>要离开工作台吗？</h2>
+        <p>退出后需要重新登录才能查看选题、样品与笔记数据。</p>
+        ${userChip(session)}
+        <div class="logout-actions">
+          <button class="btn btn-ghost" id="cancelBtn">取消</button>
+          <button class="btn btn-primary" id="confirmBtn">确认退出</button>
+        </div>
+        <p class="logout-foot">本机数据不会删除，下次登录仍会保留。</p>
+        ${Auth.canDeregister(session.user)
+          ? `<button class="danger-link" id="deleteLink">注销账号并删除我的数据</button>`
+          : `<p class="logout-foot is-demo">演示账号不可注销</p>`}`;
+      document.getElementById('cancelBtn').onclick = () => { location.href = 'index.html'; };
+      document.getElementById('confirmBtn').onclick = () => { Auth.logout(); render('done'); };
+      const link = document.getElementById('deleteLink');
+      if (link) link.onclick = () => render('delete');
+      return;
+    }
+    if (state === 'delete') {
+      pane.innerHTML = `
+        ${icon(false)}
+        <h2>确认注销账号？</h2>
+        <p>会删除账号「${(session.name || session.user)}」的登录信息（账号、昵称、邮箱、密码），以及用它新增的选题、笔记、样品、待办等全部数据，删除后无法恢复。</p>
+        ${userChip(session)}
+        <div class="logout-actions">
+          <button class="btn btn-ghost" id="backBtn">再想想</button>
+          <button class="btn btn-danger" id="deleteConfirm">确认注销</button>
+        </div>
+        <p class="auth-msg" id="deleteMsg"></p>
+        <p class="logout-foot">正常退出不会删除本机数据；演示账号不可注销。</p>`;
+      document.getElementById('backBtn').onclick = () => render('confirm');
+      document.getElementById('deleteConfirm').onclick = () => {
+        const res = Auth.deregister(session.user);
+        if (!res.ok) {
+          const msg = document.getElementById('deleteMsg');
+          if (msg) msg.textContent = res.msg;
+          return;
+        }
+        let removed = 0;
+        if (typeof Store !== 'undefined') {
+          Store.init();
+          removed = Store.removeByOwner(session.user);
+        }
+        fetch('api/sync/' + encodeURIComponent(session.user), { method: 'DELETE' }).catch(() => { });
+        if (typeof Profile !== 'undefined') Profile.remove(session.user);
+        render('deleted', { name: session.name || session.user, removed });
+      };
+      return;
+    }
+    if (state === 'deleted') {
+      pane.innerHTML = `
+        ${icon(true)}
+        <h2>账号已注销</h2>
+        <p>「${esc(extra && extra.name)}」的登录信息，以及它新增的 ${extra ? extra.removed : 0} 条数据，已从本机删除。</p>
+        <div class="logout-actions">
+          <a class="btn btn-primary" href="login.html">返回登录</a>
+        </div>
+        <p class="logout-foot">拾一 · 家居创作工作台</p>`;
+      return;
+    }
+    if (state === 'done') {
+      pane.innerHTML = `
+        ${icon(true)}
+        <h2>已安全退出</h2>
+        <p>工作台数据仍保存在这台设备上，重新登录后会继续使用。</p>
+        <div class="logout-actions">
+          <a class="btn btn-primary" href="login.html">重新登录</a>
+        </div>
+        <p class="logout-foot">拾一 · 家居创作工作台</p>`;
+      return;
+    }
+    pane.innerHTML = `
+      ${icon(true)}
+      <h2>当前未登录</h2>
+      <p>你已经处于退出状态，登录后可继续使用工作台。</p>
+      <div class="logout-actions">
+        <a class="btn btn-primary" href="login.html">去登录</a>
+      </div>`;
+  }
+
+  render(session ? 'confirm' : 'none');
+})();
+</script>
+</body>
+</html>

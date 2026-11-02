@@ -9,15 +9,22 @@ const http = require('http');
 const express = require('express');
 const nodemailer = require('nodemailer');
 
+// Fly.io / Railway / Render 都要求监听 8080；本地开发默认 8771
+const IS_CLOUD = !!(process.env.FLY_APP_NAME || process.env.RAILWAY_STATIC_URL || process.env.RENDER);
+const PORT = Number(process.env.PORT) || (IS_CLOUD || process.env.NODE_ENV === 'production' ? 8080 : 8771);
+
+// 持久化数据目录：云平台用 /data（需要挂载 Volume），本地用 ./data/sync
 const SYNC_DIR = path.resolve(
-  process.env.DATA_DIR ? path.join(process.env.DATA_DIR, 'sync') : path.join(__dirname, 'data', 'sync')
+  process.env.DATA_DIR ? path.join(process.env.DATA_DIR, 'sync')
+    : (IS_CLOUD
+        ? '/data/sync'
+        : path.join(__dirname, 'data', 'sync'))
 );
 const IS_RAILWAY = !!process.env.RAILWAY_STATIC_URL;
-console.log(`数据目录：${SYNC_DIR}${IS_RAILWAY ? '（Railway Persistent Volume，服务重启后保留）' : ''}`);
+console.log(`数据目录：${SYNC_DIR}${IS_RAILWAY ? '（Railway Persistent Volume，服务重启后保留）' : IS_CLOUD ? '（云平台，建议挂载持久卷到 /data）' : ''}`);
 const SYNC_LEGACY_RE = /^[A-Za-z0-9_-]{3,32}$/;
 const DATA_KEYS = ['ideas', 'notes', 'samples', 'scenes', 'assets', 'deals', 'lessons', 'finance', 'todos'];
 
-const PORT = Number(process.env.PORT) || 8771;
 const CODE_TTL = 5 * 60 * 1000;        // 验证码 5 分钟有效
 const RESEND_COOLDOWN = 60 * 1000;     // 同一邮箱 60 秒内不可重复发送
 const MAX_ATTEMPTS = 5;                // 单个验证码最多尝试 5 次

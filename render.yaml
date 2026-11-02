@@ -1,0 +1,39 @@
+# Render Blueprint —— 家居工作台
+# 导入本仓库后 Render 会自动解析这份文件
+services:
+  - type: web
+    name: home-studio
+    runtime: node
+    buildCommand: npm ci --omit=dev
+    startCommand: node server.js
+    env: node
+    healthCheckPath: /api/health
+    plan: free
+    envVars:
+      - key: PORT
+        sync: false
+      - key: DATA_DIR
+        value: /data
+        sync: false
+      - key: NODE_ENV
+        value: production
+        sync: false
+      # SMTP 可选 —— 不配则邮箱验证码降级为离线注册
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_HOST
+        value: smtp.qq.com
+        sync: false
+      - key: SMTP_PORT
+        value: "465"
+        sync: false
+      - key: SMTP_FROM_NAME
+        value: 拾一的家居工作台
+        sync: false
+
+volumes:
+  - name: home-studio-sync
+    mountPath: /data
+    sizeGB: 1

@@ -1,0 +1,33 @@
+# fly.toml app configuration file for shiyi-home-studio
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+
+app = 'shiyi-home-studio'
+primary_region = 'ams'
+
+[build]
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+# 环境变量
+[env]
+  PORT = "8080"
+  NODE_ENV = "production"
+  DATA_DIR = "/data"
+
+# 持久卷 —— 同步数据存在这里，机器重启/重建不丢
+# 先在 Fly.io 控制台或 CLI 创建: fly volume create home-studio-sync -a shiyi-home-studio -r ams -s 1
+[[mounts]]
+  source = "home-studio-sync"
+  destination = "/data"
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 256

@@ -33,6 +33,11 @@
 }
 .auth-brand .mini-brand strong{display:block;font-size:13.5px;letter-spacing:.4px}
 .auth-brand .mini-brand small{display:block;font-size:9.5px;color:var(--faint);letter-spacing:2px}
+.beta-badge{
+  display:inline-block;margin-left:6px;padding:1px 6px;border-radius:4px;font-style:normal;
+  font-size:8.5px;letter-spacing:1px;color:#fff;background:linear-gradient(135deg,#C07050,#B58C6B);vertical-align:1px
+}
+.beta-badge::before{content:'β '}
 .auth-brand h1{margin:6px 0 0;font-size:26px;line-height:1.45;font-weight:600;letter-spacing:.3px}
 .auth-brand p{margin:0;font-size:12.5px;line-height:1.8;color:var(--ink-2);max-width:330px}
 .auth-stats{display:flex;gap:18px;margin-top:auto;padding-top:18px}
@@ -102,6 +107,9 @@
 .auth-modal-tip{
   margin:0 0 14px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--tint-hover);
   font-size:11px;line-height:1.7;color:var(--muted);
+}
+.auth-modal-tip--beta{
+  border-color:#C0705040;background:linear-gradient(135deg,#C0705012,#B58C6B12);color:#8A5940;font-weight:500
 }
 .auth-modal-actions{display:flex;gap:8px;margin-top:14px}
 .auth-modal-actions .btn{flex:1;justify-content:center}

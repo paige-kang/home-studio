@@ -132,6 +132,11 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
 .brand-text{display:flex;flex-direction:column;line-height:1.25}
 .brand-text strong{font-size:14px;letter-spacing:.4px}
 .brand-text small{font-size:9.5px;color:var(--faint);letter-spacing:2px}
+.beta-badge{
+  display:inline-block;margin-left:6px;padding:1px 6px;border-radius:4px;font-style:normal;
+  font-size:8.5px;letter-spacing:1px;color:#fff;background:linear-gradient(135deg,#C07050,#B58C6B);vertical-align:1px
+}
+.beta-badge::before{content:'β '}
 .nav{display:flex;flex-direction:column;gap:18px;flex:1}
 .nav-group{display:flex;flex-direction:column;gap:3px}
 .nav-label{font-size:10.5px;color:var(--faint);letter-spacing:2px;padding:0 10px 4px}

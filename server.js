@@ -30,6 +30,24 @@ const RESEND_COOLDOWN = 60 * 1000;     // 同一邮箱 60 秒内不可重复发�
 const MAX_ATTEMPTS = 5;                // 单个验证码最多尝试 5 次
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// —— 邀请码（内测注册闸门）——
+// 环境变量 INVITE_CODES 用逗号分隔；未配置则使用下面的默认列表
+const DEFAULT_INVITE_CODES = [
+  'HOME2026',      // 拾一自用通用码
+  'SHIYI88',       // 拾一亲友
+  'HOMESTUDIO',    // 家居工作室
+  'XHSFRIEND'      // 小红书好友
+];
+const INVITE_CODES = (process.env.INVITE_CODES || '')
+  .split(',')
+  .map(s => s.trim().toUpperCase())
+  .filter(Boolean)
+  .concat(DEFAULT_INVITE_CODES)
+  .filter((v, i, a) => a.indexOf(v) === i);
+function validInvite(code) {
+  return typeof code === 'string' && INVITE_CODES.includes(code.trim().toUpperCase());
+}
+
 const smtpUser = (process.env.SMTP_USER || '').trim();
 const smtpPass = (process.env.SMTP_PASS || '').trim();
 const smtpHost = process.env.SMTP_HOST || 'smtp.qq.com';
@@ -123,7 +141,29 @@ app.get('/api/status', (req, res) => {
   res.json({ ok: true, mailConfigured: configured, host: smtpHost, port: smtpPort });
 });
 
-app.post('/api/send-code', async (req, res) => {
+// 内测邀请码校验
+app.post('/api/verify-invite', (req, res) => {
+  const invite = String((req.body && req.body.invite) || '').trim();
+  if (!invite) return res.status(400).json({ ok: false, msg: '请填写邀请码' });
+  if (!validInvite(invite)) return res.status(403).json({ ok: false, msg: '邀请码无效，请联系拾一获取' });
+  res.json({ ok: true, msg: '邀请码有效' });
+});
+
+// 内测邀请码白名单（邮箱白名单，不用邀请码也能注册）
+const INVITE_EMAIL_WHITELIST = new Set([
+  // 可在此添加允许免邀请码注册的邮箱
+]);
+
+function requireInvite(req, res, next) {
+  const invite = String((req.body && req.body.invite) || '').trim();
+  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+  if (INVITE_EMAIL_WHITELIST.has(email)) return next();
+  if (!invite) return res.status(403).json({ ok: false, msg: '请先填写邀请码' });
+  if (!validInvite(invite)) return res.status(403).json({ ok: false, msg: '邀请码无效，请联系拾一获取' });
+  next();
+}
+
+app.post('/api/send-code', requireInvite, async (req, res) => {
   const email = String((req.body && req.body.email) || '').trim().toLowerCase();
   if (!EMAIL_RE.test(email)) {
     return res.status(400).json({ ok: false, msg: '请填写有效的邮箱地址' });
@@ -164,7 +204,7 @@ app.post('/api/send-code', async (req, res) => {
   res.json({ ok: true, msg: `验证码已发送至 ${email}，5 分钟内有效` });
 });
 
-app.post('/api/verify-code', (req, res) => {
+app.post('/api/verify-code', requireInvite, (req, res) => {
   const email = String((req.body && req.body.email) || '').trim().toLowerCase();
   const code = String((req.body && req.body.code) || '').trim();
   if (!EMAIL_RE.test(email) || !code) {

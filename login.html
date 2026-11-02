@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="家居工作台">
-<title>登录 · 拾一的家居工作台</title>
+<title>登录 · 拾一的家居工作台 · 内测版</title>
 <script>
 try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.documentElement.setAttribute('data-theme', __th); } catch (e) { }
 </script>
@@ -22,7 +22,7 @@ try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.d
   <aside class="auth-brand">
     <div class="mini-brand">
       <span class="logo">拾</span>
-      <div><strong>拾一的工作台</strong><small>HOME STUDIO</small></div>
+      <div><strong>拾一的工作台</strong><small>HOME STUDIO <em class="beta-badge">内测版</em></small></div>
     </div>
     <span class="eyebrow">WELCOME BACK</span>
     <h1>把一间屋子，<br>慢慢讲给更多人听。</h1>
@@ -163,8 +163,10 @@ try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.d
 
   function registerTpl() {
     return `
+      <p class="auth-modal-tip auth-modal-tip--beta">🔒 内测阶段 · 注册需邀请码，请从拾一处获取</p>
       <p class="auth-modal-tip">账号保存在本机浏览器；验证码由你本机的 node 服务发送，5 分钟内有效。登录后可在个人中心开启数据同步到该本地服务，不会上传到第三方。</p>
       <form class="auth-fields" id="registerForm" novalidate>
+        <div class="auth-input auth-input--required"><label for="regInvite">邀请码</label><input id="regInvite" type="text" autocomplete="off" placeholder="内测邀请码" required></div>
         <div class="auth-input"><label for="regUser">账号</label><input id="regUser" type="text" autocomplete="username" placeholder="至少 3 个字符"></div>
         <div class="auth-input"><label for="regName">昵称</label><input id="regName" type="text" placeholder="例如：拾一"></div>
         <div class="auth-input"><label for="regEmail">邮箱</label><input id="regEmail" type="email" autocomplete="email" placeholder="用于接收验证码"></div>
@@ -214,7 +216,9 @@ try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.d
 
       sendBtn.addEventListener('click', async () => {
         msg.textContent = '';
+        const invite = modalBody.querySelector('#regInvite').value.trim();
         const email = emailEl.value.trim();
+        if (!invite) { msg.textContent = '请先填写邀请码'; return; }
         if (!Auth.validEmail(email)) {
           msg.textContent = '请先填写有效的邮箱地址';
           emailEl.focus();
@@ -228,7 +232,7 @@ try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.d
           const r = await fetch('api/send-code', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email })
+            body: JSON.stringify({ email, invite })
           });
           data = await r.json().catch(() => ({}));
           if (!r.ok || !data.ok) {
@@ -264,12 +268,14 @@ try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.d
       registerForm.addEventListener('submit', async e => {
         e.preventDefault();
         msg.textContent = '';
+        const invite = modalBody.querySelector('#regInvite').value.trim();
         const email = emailEl.value.trim();
         const code = codeEl.value.trim();
         const user = modalBody.querySelector('#regUser').value.trim();
         const pass = modalBody.querySelector('#regPass').value;
         const name = modalBody.querySelector('#regName').value.trim();
 
+        if (!invite) { msg.textContent = '请填写邀请码'; return; }
         if (!user || user.length < 3) { msg.textContent = '账号至少 3 个字符'; return; }
         if (!pass || pass.length < 6) { msg.textContent = '密码至少 6 位'; return; }
 
@@ -287,7 +293,7 @@ try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.d
             const r = await fetch('api/verify-code', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email, code })
+              body: JSON.stringify({ email, code, invite })
             });
             const data = await r.json().catch(() => ({}));
             if (r.ok && data.ok) { doRegister(email); return; }
@@ -303,7 +309,22 @@ try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.d
           return;
         }
 
-        // 纯本地注册（离线 / 无服务）
+        // 纯本地注册（离线 / 无服务）—— 也要校验邀请码
+        try {
+          const ir = await fetch('api/verify-invite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ invite })
+          });
+          const id = await ir.json().catch(() => ({}));
+          if (!ir.ok || !id.ok) {
+            msg.textContent = id.msg || '邀请码校验失败';
+            return;
+          }
+        } catch (err) {
+          msg.textContent = '无法连接邀请码服务，请稍后再试';
+          return;
+        }
         if (!email) {
           msg.textContent = '离线注册建议填一个邮箱留档，可跳过';
         }

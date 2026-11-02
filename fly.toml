@@ -21,10 +21,9 @@ primary_region = 'ams'
   DATA_DIR = "/data"
 
 # 持久卷 —— 同步数据存在这里，机器重启/重建不丢
-# 等 Fly.io 上创建好 home-studio-sync 卷后再取消注释
-# [[mounts]]
-#   source = "home-studio-sync"
-#   destination = "/data"
+[[mounts]]
+  source = "home_studio_sync"
+  destination = "/data"
 
 [[vm]]
   memory = '1gb'

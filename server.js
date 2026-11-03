@@ -104,7 +104,9 @@ function readAdminData() {
 function writeAdminData(d) {
   try {
     fs.mkdirSync(path.dirname(ADMIN_DATA_FILE), { recursive: true });
-    fs.writeFileSync(ADMIN_DATA_FILE, JSON.stringify(d, null, 2));
+    const tmp = ADMIN_DATA_FILE + '.tmp.' + crypto.randomBytes(4).toString('hex');
+    fs.writeFileSync(tmp, JSON.stringify(d, null, 2));
+    fs.renameSync(tmp, ADMIN_DATA_FILE);
   } catch (err) { /* 只读文件系统 */ }
 }
 function generateToken() {
@@ -242,7 +244,7 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(__dirname)));
 
 app.get('/api/status', (req, res) => {
-  res.json({ ok: true, mailConfigured: configured, host: smtpHost, port: smtpPort });
+  res.json({ ok: true, mailConfigured: configured });
 });
 
 // 内测邀请码校验

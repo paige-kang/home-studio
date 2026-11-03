@@ -43,8 +43,8 @@
 .kpi-icon svg{width:14px;height:14px}
 .kpi-icon.is-warn{background:var(--red-soft);color:var(--red)}
 .kpi:hover .kpi-icon{transform:scale(1.06)}
-.kpi-label{font-size:11.5px;color:var(--muted);letter-spacing:.4px}
-.kpi-val{font-size:25px;font-weight:600;line-height:1.25;margin:5px 0 2px;letter-spacing:-.3px}
+.kpi-label{font-size:11.5px;color:var(--muted);letter-spacing:.4px;font-weight:400}
+.kpi-val{font-size:25px;font-weight:500;line-height:1.25;margin:5px 0 2px;letter-spacing:-.4px;color:var(--ink)}
 .kpi-val small{font-size:11px;font-weight:400;color:var(--faint);margin-left:3px}
 .kpi-val.is-warn{color:var(--red)}
 .kpi-sub{font-size:10.5px;color:var(--faint);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -67,34 +67,34 @@
 /* 首页数据图表 */
 .viz-grid{grid-template-columns:1.55fr 1fr 1fr}
 .viz-panel{min-width:0}
-.viz-body{display:flex;flex-direction:column;justify-content:center;min-height:168px}
+.viz-body{display:flex;flex-direction:column;justify-content:center;min-height:168px;padding:2px 0}
 .viz-svg{width:100%;height:auto;display:block}
 .viz-grid-line{stroke:var(--line);stroke-width:1;stroke-dasharray:3 4}
-.viz-axis-label{fill:var(--faint);font-size:11px;font-family:var(--font)}
-.viz-dot{fill:var(--accent);stroke:var(--surface);stroke-width:1.5}
-.viz-line{stroke:var(--accent)}
-.viz-stop-a{stop-color:var(--accent);stop-opacity:.2}
+.viz-axis-label{fill:var(--faint);font-size:10px;font-family:var(--font);font-weight:400}
+.viz-dot{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.viz-line{stroke:var(--accent);stroke-width:2;filter:drop-shadow(0 1px 2px rgba(0,0,0,.04))}
+.viz-stop-a{stop-color:var(--accent);stop-opacity:.15}
 .viz-stop-b{stop-color:var(--accent);stop-opacity:0}
-.viz-legend{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--muted);margin-top:2px}
+.viz-legend{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--muted);margin-top:4px}
 .viz-key{width:7px;height:7px;border-radius:50%;display:inline-block;background:var(--accent)}
 .viz-legend-note{margin-left:auto;font-size:10px;color:var(--faint)}
 .donut-wrap{display:flex;align-items:center;gap:14px}
 .donut-box{flex:0 0 116px}
 .donut-svg{width:116px;height:116px;display:block}
-.donut-total{fill:var(--ink);font-size:25px;font-weight:600;font-family:var(--font)}
+.donut-total{fill:var(--ink);font-size:23px;font-weight:500;font-family:var(--font);letter-spacing:-.3px}
 .donut-unit{fill:var(--faint);font-size:10px;font-family:var(--font)}
 .donut-legend{flex:1;display:flex;flex-direction:column;gap:6px;min-width:0}
 .donut-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-2)}
 .donut-item i{width:7px;height:7px;border-radius:2px;display:inline-block;flex:0 0 auto}
-.donut-item span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.donut-item em{font-style:normal;color:var(--ink);font-weight:600}
+.donut-item span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:400}
+.donut-item em{font-style:normal;color:var(--ink);font-weight:500;font-size:11px}
 .donut-item small{color:var(--faint);font-size:10px;flex:0 0 30px;text-align:right}
 .spend-total{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px}
-.spend-total span{font-size:10.5px;color:var(--muted)}
-.spend-total b{font-size:17px;font-weight:600;letter-spacing:-.2px}
+.spend-total span{font-size:10.5px;color:var(--muted);letter-spacing:.3px}
+.spend-total b{font-size:17px;font-weight:500;letter-spacing:-.3px;color:var(--ink)}
 .spend-list{display:flex;flex-direction:column;gap:9px}
 .spend-row{display:flex;align-items:center;gap:8px}
-.spend-label{flex:0 0 46px;font-size:11px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spend-label{flex:0 0 46px;font-size:11px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:400}
 .spend-bar{flex:1;height:7px;border-radius:5px;background:var(--track);overflow:hidden}
 .spend-bar i{display:block;height:100%;border-radius:5px}
 .spend-amt{flex:0 0 auto;font-size:11px;font-weight:500;color:var(--ink-2)}

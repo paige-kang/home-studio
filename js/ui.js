@@ -168,7 +168,23 @@ function openForm(key, item, opts) {
   const isEdit = !!item;
   const ro = !!opts.readonly;
   const data = isEdit ? JSON.parse(JSON.stringify(item)) : Object.assign(defaultsFor(schema), opts.preset || {});
-  const inner = schema.form.map(sec => `<div class="form-sec">${esc(sec.t)}</div><div class="form-grid">${sec.keys.map(k => { const f = fieldOf(schema, k); return f ? fieldHTML(f, data[k], key) : ''; }).join('')}</div>`).join('');
+  let inner = schema.form.map(sec => `<div class="form-sec">${esc(sec.t)}</div><div class="form-grid">${sec.keys.map(k => { const f = fieldOf(schema, k); return f ? fieldHTML(f, data[k], key) : ''; }).join('')}</div>`).join('');
+
+  // 内容流水线：套用模板
+  if (key === 'notes' && !ro) {
+    const tpls = Store.list('templates').filter(t => t.type === '文案模板' || t.type === '脚本模板' || t.type === '标题模板');
+    const tplOpts = tpls.length
+      ? tpls.map(t => `<option value="${t.id}">${esc(t.title)}（${t.type}）</option>`).join('')
+      : '<option value="">暂无模板，先去模板库创建</option>';
+    inner = `<div class="tpl-apply-bar">
+      <label>📝 套用内容模板</label>
+      <div class="tpl-apply-row">
+        <select id="tplSelect"><option value="">选择一个模板…</option>${tplOpts}</select>
+        <button type="button" class="btn btn-soft" id="tplApplyBtn">套用</button>
+        <a class="tpl-link" href="#/templates" target="_blank">去模板库 →</a>
+      </div>
+    </div>` + inner;
+  }
   const foot = ro
     ? '<button class="btn btn-ghost" data-cancel>关闭</button>'
     : `${isEdit ? '<button class="btn btn-danger left" data-del>删除</button>' : ''}<button class="btn btn-ghost" data-cancel>取消</button><button class="btn btn-primary" data-save>${isEdit ? '保存修改' : '创建'}</button>`;
@@ -209,6 +225,32 @@ function openForm(key, item, opts) {
   // 标签 / 关联切换
   modal.querySelectorAll('[data-tag]').forEach(btn => btn.addEventListener('click', () => btn.classList.toggle('is-active')));
   modal.querySelectorAll('[data-refid]').forEach(btn => btn.addEventListener('click', () => btn.classList.toggle('is-active')));
+
+  // 套用模板
+  const tplApplyBtn = document.getElementById('tplApplyBtn');
+  if (tplApplyBtn) {
+    tplApplyBtn.onclick = () => {
+      const sel = document.getElementById('tplSelect');
+      const tplId = sel.value;
+      if (!tplId) { toast('请先选择一个模板'); return; }
+      const tpl = Store.list('templates').find(t => t.id === tplId);
+      if (!tpl) return;
+      // 文案模板/脚本模板 → body；标题模板 → title
+      const bodyField = modal.querySelector('[data-field="body"] textarea');
+      const titleField = modal.querySelector('[data-field="title"] input');
+      if (tpl.type === '标题模板') {
+        if (titleField) { titleField.value = tpl.content; titleField.dispatchEvent(new Event('input')); }
+        toast('已套用标题模板');
+      } else {
+        if (bodyField) { bodyField.value = tpl.content; bodyField.dispatchEvent(new Event('input')); }
+        toast('已套用模板到正文');
+      }
+      // 更新使用次数
+      tpl.useCount = (Number(tpl.useCount) || 0) + 1;
+      tpl.updatedAt = D.iso(D.today());
+      Store.update('templates', tpl.id, tpl);
+    };
+  }
 
   const collect = () => {
     const out = {};

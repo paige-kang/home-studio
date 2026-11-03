@@ -229,6 +229,28 @@ const SCHEMAS = {
       { t: '记录', keys: ['content', 'link', 'img'] }
     ]
   },
+  templates: {
+    key: 'templates', label: '内容模板库', desc: '把写过的好文案、好标题存成模板，新建笔记一键套用，越写越快。',
+    icon: 'i-book', statuses: ['文案模板', '标题模板', '脚本模板', '封面构思'], group: 'type',
+    date: 'updatedAt', title: 'title', sub: 'type', tag: 'tags', img: 'img',
+    views: ['gallery', 'table'], defaultView: 'gallery',
+    table: ['title', 'type', 'trackType', 'useCount', 'updatedAt'],
+    fields: [
+      { k: 'title', t: '模板名称', type: 'text', req: 1, span: 2, ph: '如：种草类开头模板' },
+      { k: 'type', t: '模板类型', type: 'select', opts: ['文案模板', '标题模板', '脚本模板', '封面构思'] },
+      { k: 'trackType', t: '适用笔记类型', type: 'select', opts: ['通用', '种草', '测评', '改造', '商单', '其他'] },
+      { k: 'tags', t: '标签', type: 'tags', opts: ['开头', '结尾', '种草', '避坑', '清单', '对比', '氛围'], span: 2 },
+      { k: 'content', t: '模板内容', type: 'textarea', span: 2, ph: '正文模板，可用 {{产品}} {{价格}} {{场景}} 等占位符，套用时替换' },
+      { k: 'tip', t: '使用说明', type: 'textarea', span: 2, ph: '这个模板适合什么场景、怎么用效果好' },
+      { k: 'img', t: '参考配图', type: 'image', span: 2 },
+      { k: 'useCount', t: '使用次数', type: 'number' }
+    ],
+    form: [
+      { t: '基本信息', keys: ['title', 'type', 'trackType', 'tags'] },
+      { t: '模板内容', keys: ['content', 'tip', 'img'] },
+      { t: '统计', keys: ['useCount'] }
+    ]
+  },
   todos: {
     key: 'todos', label: '待办清单', desc: '拍摄、发布、样品、商务，一件一件划掉。',
     icon: 'i-check', statuses: ['未完成', '已完成'], group: 'done',
@@ -326,6 +348,14 @@ function buildSeed() {
       { id: 'lesson-4', title: '选题流量差：原木边几避坑', type: '踩坑记录', date: D.add(-18), tags: ['选品', '流量'], content: '避坑内容要具体到「哪一类人别买」，泛泛而谈没人收藏。', link: '', img: '' },
       { id: 'lesson-5', title: '封面 3 秒法则', type: '规则技巧', date: D.add(-5), tags: ['封面', '标题'], content: '封面只留一个主体 + 一句短标题；字占画面不超过 1/4；色系统一。', link: '', img: '' }
     ],
+    templates: [
+      { id: 'tpl-1', title: '种草类开头：场景+痛点+解决', type: '文案模板', trackType: '种草', tags: ['开头'], content: '在{{场景}}的时候，是不是总被{{痛点}}困扰？\n试了{{产品}}之后，才发现原来可以这么{{效果}}。\n\n具体怎么做的，我整理在了下面👇', tip: '适合种草类笔记开头，第一句直接戳痛点，别铺垫。', img: '', useCount: 5, updatedAt: D.iso(D.today()) },
+      { id: 'tpl-2', title: '测评类结构：结论先行+多维度对比', type: '脚本模板', trackType: '测评', tags: ['对比'], content: '直接说结论：{{推荐款}}最值得入，{{不推荐款}}别买。\n\n对比维度：\n1. {{维度1}}：{{结论1}}\n2. {{维度2}}：{{结论2}}\n3. {{维度3}}：{{结论3}}\n\n最后给选购建议：{{人群}}选{{款}}，{{人群2}}选{{款2}}。', tip: '测评类一定要先给结论，再展开对比，读者没耐心看到最后。', img: '', useCount: 3, updatedAt: D.iso(D.today()) },
+      { id: 'tpl-3', title: '改造类开头：前后对比+预算', type: '文案模板', trackType: '改造', tags: ['开头'], content: '花了{{预算}}元，把{{空间}}改成了{{风格}}。\n改造前：{{痛点描述}}\n改造后：{{效果描述}}\n\n清单和步骤都在后面，建议先收藏。', tip: '改造类笔记的流量密码是「前后对比」，封面和开头都要直接给反差。', img: '', useCount: 4, updatedAt: D.iso(D.today()) },
+      { id: 'tpl-4', title: '数字型标题模板', type: '标题模板', trackType: '通用', tags: ['清单'], content: '{{数字}}个{{品类}}｜{{人群}}必看，{{结果}}', tip: '数字型标题点击率高，数字尽量具体（如 5 个、300 元内），人群越精准越好。', img: '', useCount: 8, updatedAt: D.iso(D.today()) },
+      { id: 'tpl-5', title: '避坑型标题模板', type: '标题模板', trackType: '通用', tags: ['避坑'], content: '买了{{产品}}才知道，{{坑点}}真的别踩', tip: '避坑型标题收藏率高，正文要具体到「哪类人别买」「为什么」。', img: '', useCount: 6, updatedAt: D.iso(D.today()) },
+      { id: 'tpl-6', title: '清单类正文结构', type: '文案模板', trackType: '种草', tags: ['清单'], content: '{{品类}}清单｜只推荐这{{数量}}件\n\n1. {{产品1}}：{{一句话推荐理由}}\n2. {{产品2}}：{{一句话推荐理由}}\n3. {{产品3}}：{{一句话推荐理由}}\n\n最后说一句：{{总结建议}}', tip: '清单类笔记适合好物分享，每件产品只写一句话，重点突出。', img: '', useCount: 2, updatedAt: D.iso(D.today()) }
+    ],
     todos: [
       { id: 'todo-1', title: '把原木梳妆凳寄回木野（顺丰）', module: '样品', priority: '高', due: D.add(1), done: '未完成', note: '归还截止 2 天后，别忘拍寄回视频。' },
       { id: 'todo-2', title: '补拍梳妆凳坐高对比图', module: '拍摄', priority: '高', due: D.add(0), done: '未完成', note: '五把凳子同一机位。' },
@@ -394,6 +424,7 @@ const Store = {
   find(key, id) { return (this.state[key] || []).find(x => x.id === id) || null; },
   add(key, data) {
     data.id = data.id || D.uid(key.slice(0, 4));
+    if (key === 'templates') data.updatedAt = data.updatedAt || D.iso(D.today());
     if (!data.owner && typeof Auth !== 'undefined') {
       const session = Auth.current();
       if (session) data.owner = session.user;
@@ -403,6 +434,7 @@ const Store = {
   },
   update(key, id, patch) {
     const item = this.find(key, id); if (!item) return null;
+    if (key === 'templates') patch.updatedAt = patch.updatedAt || D.iso(D.today());
     Object.assign(item, patch); this.save(); return item;
   },
   remove(key, id) {
@@ -426,7 +458,7 @@ const Store = {
     if (settings) this.state.settings = settings;
     this.save();
   },
-  dataKeys: ['ideas', 'notes', 'samples', 'scenes', 'assets', 'deals', 'lessons', 'finance', 'todos'],
+  dataKeys: ['ideas', 'notes', 'samples', 'scenes', 'assets', 'deals', 'lessons', 'templates', 'finance', 'todos'],
   totalCount() {
     return this.dataKeys.reduce((a, k) => a + this.list(k).length, 0);
   },

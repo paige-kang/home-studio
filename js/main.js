@@ -1,6 +1,6 @@
 /* ---------------- 路由 ---------------- */
 const ROUTE_NAMES = {
-  dashboard: '首页总览', ideas: '选题库', notes: '内容流水线', assets: '素材图库',
+  dashboard: '首页总览', ideas: '选题库', notes: '内容流水线', templates: '内容模板库', assets: '素材图库',
   samples: '样品软装库', scenes: '布景道具库', deals: '商务合作', lessons: '复盘知识库',
   finance: '收支台账', todos: '待办清单', calendar: '日历排期', profile: '个人中心',
   admin: '管理后台'

@@ -294,6 +294,21 @@ button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-off
 .form-grid .span2{grid-column:1/-1}
 .form-sec{margin:8px 0 14px;padding-top:14px;border-top:1px dashed var(--line);display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1.5px;color:var(--faint)}
 .form-sec:first-child{border-top:0;margin-top:0;padding-top:0}
+
+/* 套用模板栏 */
+.tpl-apply-bar{
+  background:linear-gradient(135deg,var(--tint),transparent);
+  border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:8px;
+}
+.tpl-apply-bar>label{font-size:12px;font-weight:600;color:var(--ink);display:block;margin-bottom:8px}
+.tpl-apply-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tpl-apply-row select{
+  flex:1;min-width:180px;padding:8px 12px;border-radius:8px;border:1px solid var(--line);
+  background:var(--surface);font-size:12.5px;color:var(--ink);outline:none;cursor:pointer;
+}
+.tpl-apply-row select:focus{border-color:var(--accent)}
+.tpl-link{font-size:12px;color:var(--accent);text-decoration:none;white-space:nowrap}
+.tpl-link:hover{text-decoration:underline}
 .tag-editor{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .tag-editor .chip.is-active{background:var(--accent-soft);border-color:var(--line-strong);color:var(--accent-deep)}
 .tag-extra{border:1px dashed var(--line-strong);background:transparent;border-radius:20px;padding:4px 9px;font-size:11px;outline:0;min-width:120px;color:var(--ink-2)}

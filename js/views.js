@@ -394,7 +394,7 @@ function renderSpendChart() {
 }
 
 /* ---------------- 通用模块页面 ---------------- */
-const NEW_LABELS = { ideas: '选题', notes: '笔记', samples: '样品', scenes: '布景', assets: '素材', deals: '合作', lessons: '复盘', finance: '记录', todos: '待办' };
+const NEW_LABELS = { ideas: '选题', notes: '笔记', samples: '样品', scenes: '布景', assets: '素材', deals: '合作', lessons: '复盘', templates: '模板', finance: '记录', todos: '待办' };
 
 function renderPage(key) {
   const s = SCHEMAS[key];

@@ -138,16 +138,39 @@ function requireAdmin(req, res, next) {
 function consumeInvite(code, user, email) {
   try {
     const admin = readAdminData();
+    const em = String(email || '').toLowerCase();
+    // 防止重复注册
+    const existing = (admin.users || []).find(u => u.email === em);
+    if (existing) {
+      if (existing.disabled) return { ok: false, msg: '该账号已被禁用，请联系管理员' };
+      existing.user = String(user || '').trim() || existing.user;
+      existing.inviteUsed = existing.inviteUsed || code;
+      writeAdminData(admin);
+      return { ok: true, user: existing };
+    }
     const entry = admin.codes.find(c => c.code === code);
     if (entry) entry.uses = (entry.uses || 0) + 1;
     admin.users.push({
-      email: String(email || '').toLowerCase(),
+      email: em,
       user: String(user || '').trim(),
       inviteUsed: code,
-      registeredAt: new Date().toISOString()
+      registeredAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      disabled: false,
+      note: ''
     });
     writeAdminData(admin);
-  } catch (e) { /* 忽略存储失败 */ }
+    return { ok: true };
+  } catch (e) { return { ok: true }; }
+}
+
+function isUserDisabled(email) {
+  try {
+    const admin = readAdminData();
+    const em = String(email || '').toLowerCase();
+    const u = (admin.users || []).find(x => x.email === em);
+    return u && u.disabled;
+  } catch (e) { return false; }
 }
 
 function randomInviteCode(len = 8) {
@@ -259,6 +282,30 @@ app.post('/api/verify-invite', (req, res) => {
 });
 
 // —— 管理员后台 API ——
+function adminStats(admin) {
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const todayUsers = (admin.users || []).filter(u => (u.createdAt || '').slice(0, 10) === today).length;
+  const enabledCodes = (admin.codes || []).filter(c => c.enabled).length;
+  const usedCodes = (admin.codes || []).filter(c => c.uses > 0).length;
+  const activeUsers = (admin.users || []).filter(u => !u.disabled).length;
+  return {
+    totalUsers: (admin.users || []).length,
+    activeUsers,
+    disabledUsers: (admin.users || []).filter(u => u.disabled).length,
+    todayNewUsers: todayUsers,
+    totalCodes: (admin.codes || []).length,
+    enabledCodes,
+    usedCodes,
+    availableCodes: (admin.codes || []).filter(c => c.enabled && (!c.maxUses || c.uses < c.maxUses)).length,
+  };
+}
+
+app.get('/api/admin/stats', requireAdmin, (req, res) => {
+  const admin = readAdminData();
+  res.json({ ok: true, stats: adminStats(admin) });
+});
+
 app.post('/api/admin/login', (req, res) => {
   const username = String((req.body && req.body.username) || '').trim();
   const email = String((req.body && req.body.email) || '').trim().toLowerCase();
@@ -336,7 +383,21 @@ app.delete('/api/admin/invites/:code', requireAdmin, (req, res) => {
 // 用户管理
 app.get('/api/admin/users', requireAdmin, (req, res) => {
   const admin = readAdminData();
-  res.json({ ok: true, users: admin.users });
+  let users = admin.users || [];
+  const q = String(req.query.q || '').trim().toLowerCase();
+  if (q) users = users.filter(u => u.email.toLowerCase().includes(q) || (u.note || '').toLowerCase().includes(q));
+  res.json({ ok: true, users });
+});
+app.patch('/api/admin/users/:email', requireAdmin, (req, res) => {
+  const admin = readAdminData();
+  const email = decodeURIComponent(req.params.email).toLowerCase();
+  const u = (admin.users || []).find(x => x.email === email);
+  if (!u) return res.status(404).json({ ok: false, msg: '用户不存在' });
+  const b = req.body || {};
+  if (b.disabled != null) u.disabled = !!b.disabled;
+  if (b.note != null) u.note = String(b.note);
+  writeAdminData(admin);
+  res.json({ ok: true, user: u });
 });
 app.delete('/api/admin/users/:email', requireAdmin, (req, res) => {
   const admin = readAdminData();
@@ -345,6 +406,34 @@ app.delete('/api/admin/users/:email', requireAdmin, (req, res) => {
   if (admin.users.length === before) return res.status(404).json({ ok: false, msg: '用户不存在' });
   writeAdminData(admin);
   res.json({ ok: true });
+});
+
+// 导出 CSV
+app.get('/api/admin/export/:kind', requireAdmin, (req, res) => {
+  const admin = readAdminData();
+  const kind = req.params.kind;
+  let rows = [], header = '';
+  if (kind === 'users') {
+    header = '邮箱,昵称,注册时间,邀请码,状态,备注';
+    rows = (admin.users || []).map(u => [
+      u.email, (u.note || '').replace(/,/g, '，'),
+      u.createdAt || '', u.invite || '',
+      u.disabled ? '已禁用' : '正常', (u.note || '').replace(/,/g, '，')
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+  } else if (kind === 'invites') {
+    header = '邀请码,备注,创建时间,过期时间,使用次数,最大次数,启用,来源';
+    rows = (admin.codes || []).map(c => [
+      c.code, (c.note || '').replace(/,/g, '，'),
+      c.createdAt || '', c.expiresAt || '',
+      c.uses || 0, c.maxUses ?? '',
+      c.enabled ? '是' : '否', c.source || 'admin'
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+  } else {
+    return res.status(404).json({ ok: false, msg: '未知导出类型' });
+  }
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${kind}-${Date.now()}.csv"`);
+  res.send('\uFEFF' + header + '\n' + rows.join('\n'));
 });
 
 // 内测邀请码白名单（邮箱白名单，不用邀请码也能注册）
@@ -423,11 +512,16 @@ app.post('/api/verify-code', requireInvite, (req, res) => {
     return res.status(400).json({ ok: false, msg: '验证码不正确，请检查后重试' });
   }
   codes.delete(email);
+  // 检查账号是否被禁用
+  if (isUserDisabled(email)) {
+    return res.status(403).json({ ok: false, msg: '该账号已被禁用，请联系管理员' });
+  }
   // 记录注册消耗 + 用户信息
   try {
     const invite = String((req.body && req.body.invite) || '').trim().toUpperCase();
     const user = String((req.body && req.body.user) || '').trim();
-    consumeInvite(invite, user, email);
+    const r = consumeInvite(invite, user, email);
+    if (r && r.ok === false) return res.status(403).json({ ok: false, msg: r.msg });
   } catch (e) { /* 忽略存储失败 */ }
   res.json({ ok: true });
 });

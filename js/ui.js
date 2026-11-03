@@ -31,7 +31,7 @@ function fmtCell(f, item) {
   if (f.type === 'ref') return esc(refName(f.ref, v)) || '<span class="cell-empty">—</span>';
   if (f.type === 'refs') return (v || []).length ? (v || []).map(id => `<span class="tag">${esc(refName(f.ref, id))}</span>`).join('') : '<span class="cell-empty">—</span>';
   if (f.type === 'tags') return (v || []).length ? (v || []).map(t => `<span class="tag">${esc(t)}</span>`).join('') : '<span class="cell-empty">—</span>';
-  if (f.type === 'image') return isURL(v) ? `<img class="cell-thumb" src="${esc(v)}" alt="">` : '<span class="cell-empty">—</span>';
+  if (f.type === 'image') { const ok = isURL(v) || (typeof v === 'string' && v.startsWith('data:')); return ok ? `<img class="cell-thumb" src="${esc(v)}" alt="">` : '<span class="cell-empty">—</span>'; }
   if (f.type === 'textarea') return `<span class="cell-text" title="${esc(v)}">${esc(v || '—')}</span>`;
   return esc(v || '—');
 }
@@ -133,7 +133,16 @@ function fieldHTML(f, value, schemaKey) {
   } else if (f.type === 'link') {
     inner = `<div class="link-row"><input type="text" data-fk="${f.k}" value="${esc(v)}" placeholder="https://"><a class="ext-link" data-open-link target="_blank" rel="noopener" hidden>打开<svg class="i-mini"><use href="#i-external"/></svg></a></div>`;
   } else if (f.type === 'image') {
-    inner = `<input type="text" data-fk="${f.k}" value="${esc(v)}" placeholder="图片链接（留空则使用色块占位）"><img class="img-preview ${isURL(v) ? 'show' : ''}" data-preview src="${esc(isURL(v) ? v : '')}" alt="">`;
+    const isBase64 = typeof v === 'string' && v.startsWith('data:');
+    const showImg = isURL(v) || isBase64;
+    inner = `<div class="image-field">
+      <input type="text" data-fk="${f.k}" value="${esc(v)}" placeholder="图片链接，或点右侧本地上传">
+      <label class="img-upload-btn" title="从本地上传图片">
+        <svg class="ni"><use href="#i-image"/></svg>上传
+        <input type="file" accept="image/*" data-img-upload hidden>
+      </label>
+      <img class="img-preview ${showImg ? 'show' : ''}" data-preview src="${esc(showImg ? v : '')}" alt="">
+    </div>`;
   } else if (f.type === 'tags') {
     const selected = Array.isArray(v) ? v : (v ? String(v).split(/[，,、]/).filter(Boolean) : []);
     inner = `<div class="tag-editor" data-fk="${f.k}">
@@ -182,9 +191,18 @@ function openForm(key, item, opts) {
       inp.addEventListener('input', sync); sync();
     }
     if (f.type === 'image') {
-      const inp = fd.querySelector('input'), prev = fd.querySelector('[data-preview]');
-      inp.addEventListener('input', () => {
-        if (isURL(inp.value)) { prev.src = inp.value; prev.classList.add('show'); } else prev.classList.remove('show');
+      const inp = fd.querySelector('input[type="text"]'), prev = fd.querySelector('[data-preview]');
+      const upload = fd.querySelector('[data-img-upload]');
+      const sync = () => { const v = inp.value; const ok = isURL(v) || v.startsWith('data:'); if (ok) { prev.src = v; prev.classList.add('show'); } else prev.classList.remove('show'); };
+      inp.addEventListener('input', sync); sync();
+      upload.addEventListener('change', () => {
+        const file = upload.files && upload.files[0];
+        if (!file) return;
+        if (file.size > 4 * 1024 * 1024) { toast('图片请小于 4MB'); upload.value = ''; return; }
+        const reader = new FileReader();
+        reader.onload = () => { inp.value = reader.result; sync(); toast('图片已上传'); };
+        reader.onerror = () => { toast('图片读取失败'); };
+        reader.readAsDataURL(file);
       });
     }
   });
@@ -365,7 +383,8 @@ function renderGallery(schema, items) {
     const src = schema.img ? it[schema.img] : '';
     const sub = schema.sub ? fieldValue(schema, it, schema.sub) : '';
     const tags = schema.tag ? (Array.isArray(it[schema.tag]) ? it[schema.tag] : [it[schema.tag]]).filter(Boolean).slice(0, 3).map(t => `<span class="tag">${esc(t)}</span>`).join('') : '';
-    const img = isURL(src)
+    const imgOk = isURL(src) || (typeof src === 'string' && src.startsWith('data:'));
+    const img = imgOk
       ? `<img src="${esc(src)}" alt="">`
       : `<div class="gimg-fallback grad-${hashOf(it.id)}"><b>${esc(String(it[schema.title] || '拾').slice(0, 1))}</b><small>${esc(schema.label)}</small></div>`;
     return `<article class="gcard" data-act="open" data-key="${schema.key}" data-id="${it.id}">

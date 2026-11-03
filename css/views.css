@@ -832,6 +832,17 @@ button.wt-row:hover{background:var(--tint-hover)}
 .admin-login-msg{margin-top:12px;font-size:12px;color:#C4544D;min-height:16px}
 
 /* 主界面 */
+/* 数据看板 */
+.ad-stats{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:18px;
+}
+.ad-stat-card{
+  background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:16px 18px;
+  display:flex;flex-direction:column;gap:4px;transition:all .18s;
+}
+.ad-stat-card:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.04)}
+.ad-stat-num{font-size:26px;font-weight:700;color:var(--ink);letter-spacing:-.5px;line-height:1.1}
+.ad-stat-label{font-size:11px;color:var(--faint);letter-spacing:.4px}
 .admin-tabs{
   display:flex;align-items:center;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--line);
   padding-bottom:0;background:transparent;
@@ -870,6 +881,33 @@ button.wt-row:hover{background:var(--tint-hover)}
   transition:all .15s;flex-shrink:0;
 }
 .ad-gen-row button:hover{transform:translateY(-1px)}
+
+/* 用户搜索栏 */
+.ad-user-toolbar{
+  display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;
+}
+.ad-search{
+  flex:1;min-width:200px;padding:9px 14px;border-radius:8px;border:1px solid var(--line);
+  background:var(--surface);font-size:12.5px;color:var(--ink);outline:none;transition:border-color .15s;
+}
+.ad-search:focus{border-color:var(--accent)}
+
+/* 用户状态徽章 */
+.ad-badge{
+  display:inline-block;padding:2px 10px;border-radius:999px;font-size:11px;font-weight:500;letter-spacing:.3px;
+}
+.ad-badge-on{background:rgba(46,160,67,.1);color:#2EA043}
+.ad-badge-off{background:rgba(196,84,77,.1);color:#C4544D}
+.ad-row-disabled{opacity:.55}
+.ad-row-disabled td{color:var(--faint)}
+
+/* 备注输入框 */
+.ad-edit{
+  width:100%;padding:5px 8px;border:1px solid transparent;border-radius:6px;background:transparent;
+  font-size:12px;color:var(--ink);outline:none;transition:all .15s;
+}
+.ad-edit:hover{border-color:var(--line)}
+.ad-edit:focus{border-color:var(--accent);background:var(--surface)}
 
 /* 表格 */
 .ad-list-wrap{

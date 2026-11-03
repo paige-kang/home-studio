@@ -728,15 +728,11 @@ function renderProfilePage() {
     </div>
 
     <div class="card panel profile-section">
-      <div class="panel-head"><div><h2>更换头像</h2><p class="panel-sub">上传一张图片，或直接用一套配色。</p></div></div>
+      <div class="panel-head"><div><h2>更换头像</h2><p class="panel-sub">点击上方"换"上传图片，或直接选一套配色。</p></div></div>
       <div class="avatar-row">
         <div class="avatar-presets">${gradCards}</div>
-        <div class="avatar-tools">
-          <label class="btn btn-soft" for="avatarFile"><svg class="ni"><use href="#i-image"/></svg>上传本地图片</label>
-          <button class="btn btn-ghost" id="avatarReset">恢复默认</button>
-        </div>
       </div>
-      <p class="profile-hint" id="avatarHint">支持 JPG / PNG，会自动裁剪成正方形并压缩，建议选 1MB 以内的图。</p>
+      <p class="profile-hint">支持 JPG / PNG，会自动裁剪成正方形并压缩，建议选 1MB 以内的图。</p>
     </div>
 
     <div class="card panel profile-section">
@@ -984,6 +980,7 @@ function renderAdminPage() {
 
   // 已登录：tab 界面
   body.innerHTML = `
+    <div class="ad-stats" id="adminStats"><div class="ad-stat-card"><span class="ad-stat-label">加载中…</span></div></div>
     <div class="admin-tabs">
       <button class="ad-tab is-active" data-ad-tab="invites">邀请码管理</button>
       <button class="ad-tab" data-ad-tab="users">注册用户</button>
@@ -1018,10 +1015,11 @@ function renderAdminPage() {
       <div class="ad-gen-row">
         <input type="text" id="newCode" placeholder="自定义（留空自动生成）">
         <input type="text" id="newNote" placeholder="备注（如：小红书粉丝群1）">
-        <input type="number" id="newMax" placeholder="最大使用次数（留空不限制）" min="1">
-        <input type="date" id="newExpire">
+        <input type="number" id="newMax" placeholder="最大使用次数" min="1">
+        <input type="date" id="newExpire" title="过期时间">
         <input type="number" id="newCount" value="1" min="1" max="50" title="一次生成几个">
         <button class="btn btn-primary" id="genBtn">生成</button>
+        <button class="btn btn-ghost" id="exportInvitesBtn" title="导出 CSV">导出</button>
       </div>
     </div>
     <div class="ad-list-wrap">
@@ -1033,6 +1031,10 @@ function renderAdminPage() {
       </table>
     </div>`;
 
+    document.getElementById('exportInvitesBtn').onclick = () => {
+      window.open(`/api/admin/export/invites?token=${encodeURIComponent(Admin.token())}`, '_blank');
+    };
+
     document.getElementById('genBtn').onclick = async () => {
       const code = document.getElementById('newCode').value.trim();
       const note = document.getElementById('newNote').value.trim();
@@ -1042,6 +1044,7 @@ function renderAdminPage() {
       try {
         await Admin.req('POST', '/invites', { code: code || undefined, note, maxUses: maxUses || null, expiresAt: expiresAt || null, count });
         renderInvitesTab();
+        loadStats();
         toast(`已生成 ${count} 个邀请码`);
       } catch (e) { toast(e.message); }
     };
@@ -1069,7 +1072,6 @@ function renderAdminPage() {
         </td>
       </tr>`).join('');
 
-    // 事件绑定
     tbody.querySelectorAll('tr').forEach(tr => {
       const code = tr.dataset.code;
       const c = data.codes.find(x => x.code === code);
@@ -1084,48 +1086,97 @@ function renderAdminPage() {
       tr.querySelector('.ad-copy').onclick = () => { navigator.clipboard?.writeText(code); toast('已复制 ' + code); };
       tr.querySelector('.ad-del').onclick = async () => {
         if (!confirm(`确定删除邀请码 ${code}？`)) return;
-        try { await Admin.req('DELETE', `/invites/${code}`); renderInvitesTab(); }
+        try { await Admin.req('DELETE', `/invites/${code}`); renderInvitesTab(); loadStats(); }
         catch (err) { toast(err.message); }
       };
     });
   }
 
+  async function loadStats() {
+    try {
+      const s = await Admin.req('GET', '/stats');
+      const el = document.getElementById('adminStats');
+      if (!el) return;
+      const st = s.stats;
+      el.innerHTML = `
+        <div class="ad-stat-card"><span class="ad-stat-num">${st.totalUsers}</span><span class="ad-stat-label">总用户</span></div>
+        <div class="ad-stat-card"><span class="ad-stat-num">${st.todayNewUsers}</span><span class="ad-stat-label">今日新增</span></div>
+        <div class="ad-stat-card"><span class="ad-stat-num">${st.activeUsers}</span><span class="ad-stat-label">活跃用户</span></div>
+        <div class="ad-stat-card"><span class="ad-stat-num">${st.disabledUsers}</span><span class="ad-stat-label">已禁用</span></div>
+        <div class="ad-stat-card"><span class="ad-stat-num">${st.totalCodes}</span><span class="ad-stat-label">邀请码总数</span></div>
+        <div class="ad-stat-card"><span class="ad-stat-num">${st.availableCodes}</span><span class="ad-stat-label">可用邀请码</span></div>`;
+    } catch (e) {}
+  }
+
   async function renderUsersTab() {
-    content.innerHTML = `<div class="ad-list-wrap">
+    content.innerHTML = `<div class="ad-user-toolbar">
+      <input type="text" id="userSearch" placeholder="搜索邮箱 / 备注…" class="ad-search">
+      <button class="btn btn-ghost" id="exportUsersBtn" title="导出 CSV">导出用户</button>
+    </div>
+    <div class="ad-list-wrap">
       <table class="ad-table">
         <thead><tr>
-          <th>邮箱</th><th>账号</th><th>使用的邀请码</th><th>注册时间</th><th>操作</th>
+          <th>邮箱</th><th>账号</th><th>备注</th><th>使用的邀请码</th><th>注册时间</th><th>状态</th><th>操作</th>
         </tr></thead>
-        <tbody id="userRows"><tr><td colspan="5" class="ad-loading">加载中…</td></tr></tbody>
+        <tbody id="userRows"><tr><td colspan="7" class="ad-loading">加载中…</td></tr></tbody>
       </table>
     </div>`;
-    let data;
-    try { data = await Admin.req('GET', '/users'); }
+
+    let allData;
+    try { allData = await Admin.req('GET', '/users'); }
     catch (e) { content.innerHTML = `<p class="err">加载失败：${e.message}</p>`; return; }
-    document.getElementById('adminInfo').textContent = `共 ${data.users.length} 个注册用户`;
-    const tbody = document.getElementById('userRows');
-    if (!data.users.length) { tbody.innerHTML = `<tr><td colspan="5" class="ad-empty">暂无注册用户</td></tr>`; return; }
-    // 去重：同一邮箱多次注册只保留最新一次
+
     const seen = new Set();
-    const deduped = data.users.filter(u => { if (seen.has(u.email)) return false; seen.add(u.email); return true; }).reverse();
-    tbody.innerHTML = deduped.map(u => `
-      <tr data-email="${u.email}">
-        <td><a href="mailto:${u.email}">${u.email}</a></td>
-        <td>${u.user || '—'}</td>
-        <td><code class="ad-code">${u.inviteUsed || '—'}</code></td>
-        <td class="ad-ts">${Admin.fmtDate(u.registeredAt)}</td>
-        <td class="ad-actions">
-          <button class="ad-act ad-del" title="删除记录">删除</button>
-        </td>
-      </tr>`).join('');
-    tbody.querySelectorAll('tr').forEach(tr => {
-      const email = tr.dataset.email;
-      tr.querySelector('.ad-del').onclick = async () => {
-        if (!confirm(`删除 ${email} 的注册记录？（不会删除用户本地数据）`)) return;
-        try { await Admin.req('DELETE', `/users/${encodeURIComponent(email)}`); renderUsersTab(); }
-        catch (err) { toast(err.message); }
-      };
-    });
+    const deduped = allData.users.filter(u => { if (seen.has(u.email)) return false; seen.add(u.email); return true; }).reverse();
+
+    function renderRows(list) {
+      document.getElementById('adminInfo').textContent = `共 ${list.length} 个注册用户`;
+      const tbody = document.getElementById('userRows');
+      if (!list.length) { tbody.innerHTML = `<tr><td colspan="7" class="ad-empty">暂无注册用户</td></tr>`; return; }
+      tbody.innerHTML = list.map(u => `
+        <tr data-email="${u.email}" class="${u.disabled ? 'ad-row-disabled' : ''}">
+          <td><a href="mailto:${u.email}">${u.email}</a></td>
+          <td>${u.user || '—'}</td>
+          <td><input class="ad-edit ad-user-note" value="${(u.note || '').replace(/"/g, '&quot;')}" placeholder="备注" title="点击修改备注"></td>
+          <td><code class="ad-code">${u.inviteUsed || '—'}</code></td>
+          <td class="ad-ts">${Admin.fmtDate(u.registeredAt || u.createdAt)}</td>
+          <td>${u.disabled ? '<span class="ad-badge ad-badge-off">已禁用</span>' : '<span class="ad-badge ad-badge-on">正常</span>'}</td>
+          <td class="ad-actions">
+            <button class="ad-act ad-toggle" title="启用/禁用账号">${u.disabled ? '启用' : '禁用'}</button>
+            <button class="ad-act ad-del" title="删除记录">删除</button>
+          </td>
+        </tr>`).join('');
+      tbody.querySelectorAll('tr').forEach(tr => {
+        const email = tr.dataset.email;
+        const u = list.find(x => x.email === email);
+        tr.querySelector('.ad-user-note').addEventListener('change', async e => {
+          try { await Admin.req('PATCH', `/users/${encodeURIComponent(email)}`, { note: e.target.value }); toast('备注已保存'); }
+          catch (err) { toast(err.message); }
+        });
+        tr.querySelector('.ad-toggle').onclick = async () => {
+          const action = u.disabled ? '启用' : '禁用';
+          if (!confirm(`${action}账号 ${email}？${u.disabled ? '' : '禁用后该账号无法登录'}`)) return;
+          try { await Admin.req('PATCH', `/users/${encodeURIComponent(email)}`, { disabled: !u.disabled }); renderUsersTab(); loadStats(); }
+          catch (err) { toast(err.message); }
+        };
+        tr.querySelector('.ad-del').onclick = async () => {
+          if (!confirm(`删除 ${email} 的注册记录？（不会删除用户本地数据）`)) return;
+          try { await Admin.req('DELETE', `/users/${encodeURIComponent(email)}`); renderUsersTab(); loadStats(); }
+          catch (err) { toast(err.message); }
+        };
+      });
+    }
+
+    renderRows(deduped);
+    document.getElementById('userSearch').oninput = e => {
+      const q = e.target.value.trim().toLowerCase();
+      if (!q) { renderRows(deduped); return; }
+      renderRows(deduped.filter(u => u.email.toLowerCase().includes(q) || (u.note || '').toLowerCase().includes(q)));
+    };
+    document.getElementById('exportUsersBtn').onclick = () => {
+      window.open(`/api/admin/export/users?token=${encodeURIComponent(Admin.token())}`, '_blank');
+    };
   }
+  loadStats();
   renderTab(currentTab);
 }

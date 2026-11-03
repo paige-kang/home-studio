@@ -953,27 +953,30 @@ function renderAdminPage() {
           <h2>管理员登录</h2>
           <p>内测邀请码管理与用户管理，仅管理员可访问。</p>
           <div class="admin-login-form">
+            <input type="text" id="adminUser" placeholder="管理员账号（南澄 / 邮箱）" autocomplete="username">
             <input type="password" id="adminPw" placeholder="管理员密码" autocomplete="current-password">
             <button class="btn btn-primary" id="adminLoginBtn">登录</button>
           </div>
-          <p class="admin-login-hint">默认密码：<code>shiyi@2026</code>（请在服务器环境变量 ADMIN_PASSWORD 修改）</p>
           <p class="admin-login-msg" id="adminLoginMsg"></p>
         </div>
       </div>`;
+    const userEl = document.getElementById('adminUser');
     const pwEl = document.getElementById('adminPw');
-    pwEl.focus();
+    userEl.focus();
     document.getElementById('adminLoginBtn').onclick = async () => {
+      const username = userEl.value.trim();
       const pw = pwEl.value;
       const msg = document.getElementById('adminLoginMsg');
       try {
-        const r = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) });
+        const r = await fetch('/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password: pw }) });
         const data = await r.json().catch(() => ({}));
-        if (!r.ok || !data.ok) { msg.textContent = data.msg || '密码错误'; return; }
+        if (!r.ok || !data.ok) { msg.textContent = data.msg || '账号或密码错误'; return; }
         Admin.setToken(data.token);
         renderAdminPage();
       } catch (e) { msg.textContent = '连接失败'; }
     };
     pwEl.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('adminLoginBtn').click(); });
+    userEl.addEventListener('keydown', e => { if (e.key === 'Enter') pwEl.focus(); });
     return;
   }
   logoutBtn.style.display = '';
@@ -985,6 +988,7 @@ function renderAdminPage() {
       <button class="ad-tab is-active" data-ad-tab="invites">邀请码管理</button>
       <button class="ad-tab" data-ad-tab="users">注册用户</button>
       <span class="ad-spacer"></span>
+      <span class="ad-who" id="adminWho">👑 南澄</span>
       <span class="ad-info" id="adminInfo">加载中…</span>
     </div>
     <div id="adminTabContent"></div>`;

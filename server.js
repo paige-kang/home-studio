@@ -62,7 +62,10 @@ function validInvite(code) {
 }
 
 // —— 管理员后台 ——
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'shiyi@2026';
+// 超级管理员账号：南澄 / 2163758133@qq.com
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '南澄';
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || '2163758133@qq.com').toLowerCase();
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '09kang59';
 const ADMIN_SECRET = process.env.ADMIN_SECRET || crypto.randomBytes(24).toString('hex');
 const ADMIN_DATA_FILE = path.join(path.dirname(SYNC_DIR), 'admin.json');
 const ADMIN_TOKEN_TTL = 12 * 3600 * 1000; // 12 小时
@@ -257,10 +260,16 @@ app.post('/api/verify-invite', (req, res) => {
 
 // —— 管理员后台 API ——
 app.post('/api/admin/login', (req, res) => {
+  const username = String((req.body && req.body.username) || '').trim();
+  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
   const pw = String((req.body && req.body.password) || '');
+  const identity = username || email;
+  if (!identity) return res.status(400).json({ ok: false, msg: '请填写管理员账号' });
   if (!pw) return res.status(400).json({ ok: false, msg: '请填写管理员密码' });
-  if (pw !== ADMIN_PASSWORD) return res.status(401).json({ ok: false, msg: '密码不正确' });
-  res.json({ ok: true, token: generateToken() });
+  // 用户名（南澄）或邮箱（2163758133@qq.com）均可登录
+  const matchId = identity === ADMIN_USERNAME || identity === ADMIN_EMAIL || identity.toLowerCase() === ADMIN_EMAIL;
+  if (!matchId || pw !== ADMIN_PASSWORD) return res.status(401).json({ ok: false, msg: '账号或密码不正确' });
+  res.json({ ok: true, token: generateToken(), username: ADMIN_USERNAME, email: ADMIN_EMAIL });
 });
 app.post('/api/admin/logout', requireAdmin, (req, res) => {
   const auth = req.headers['x-admin-token'] || '';

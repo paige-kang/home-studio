@@ -412,6 +412,10 @@ const Store = {
     this.list('samples').forEach(s => {
       if (!s.loanStatus) s.loanStatus = '未借出';
     });
+    // 兼容旧数据：补齐内容模板库种子（老用户首次升级时注入）
+    if (!Array.isArray(this.state.templates)) {
+      this.state.templates = buildSeed().templates;
+    }
   },
   save(opts) {
     if (!opts || !opts.keepTime) {

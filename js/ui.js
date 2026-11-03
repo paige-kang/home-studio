@@ -366,6 +366,10 @@ function cardExtra(schema, item) {
   if (schema.key === 'samples' && item.budget) return `<span>${D.money(item.budget)}</span>`;
   if (schema.key === 'assets' && item.noteId) return `<span>↳ ${esc(refName('notes', item.noteId))}</span>`;
   if (schema.key === 'ideas' && (isURL(item.xhsLink) || isURL(item.refLink))) return `<a class="ext-link" href="${esc(isURL(item.xhsLink) ? item.xhsLink : item.refLink)}" target="_blank" rel="noopener">参考<svg class="i-mini"><use href="#i-external"/></svg></a>`;
+  if (schema.key === 'templates') {
+    const cnt = Number(item.useCount) || 0;
+    return `<span class="mini-tag">使用 ${cnt} 次</span>`;
+  }
   return '';
 }
 

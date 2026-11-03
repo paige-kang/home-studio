@@ -54,13 +54,16 @@ const Sync = {
   async request(method, body) {
     const user = this.user();
     if (!user) throw new Error('请先登录');
+    const session = typeof Auth !== 'undefined' ? Auth.current() : null;
+    const syncHeaders = { 'x-sync-user': user, 'x-sync-at': String(session ? session.at : Date.now()) };
+    if (body) syncHeaders['Content-Type'] = 'application/json';
     const urls = this.apiCandidates('api/sync/' + encodeURIComponent(user));
     let lastErr = null;
     for (let i = 0; i < urls.length; i++) {
       try {
         const res = await fetch(urls[i], {
           method,
-          headers: body ? { 'Content-Type': 'application/json' } : undefined,
+          headers: syncHeaders,
           body: body ? JSON.stringify(body) : undefined,
           cache: 'no-store'
         });

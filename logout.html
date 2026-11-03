@@ -81,7 +81,7 @@ try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.d
           Store.init();
           removed = Store.removeByOwner(session.user);
         }
-        fetch('api/sync/' + encodeURIComponent(session.user), { method: 'DELETE' }).catch(() => { });
+        fetch('api/sync/' + encodeURIComponent(session.user), { method: 'DELETE', headers: { 'x-sync-user': session.user, 'x-sync-at': String(session.at || Date.now()) } }).catch(() => { });
         if (typeof Profile !== 'undefined') Profile.remove(session.user);
         render('deleted', { name: session.name || session.user, removed });
       };

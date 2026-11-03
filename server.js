@@ -451,7 +451,21 @@ async function readSnapshot(user) {
   return null;
 }
 
-app.get('/api/sync/:user', async (req, res) => {
+function requireSync(req, res, next) {
+  const headerUser = String(req.headers['x-sync-user'] || '').trim();
+  const paramUser = String(req.params.user || '').trim();
+  if (!headerUser || headerUser !== paramUser) {
+    return res.status(401).json({ ok: false, msg: '未授权的同步请求' });
+  }
+  // x-sync-at: 前端登录时间戳（毫秒），允许 30 天内有效
+  const at = Number(req.headers['x-sync-at']);
+  if (!at || isNaN(at) || Date.now() - at > 30 * 24 * 3600 * 1000 || at > Date.now() + 60 * 1000) {
+    return res.status(401).json({ ok: false, msg: '同步会话已过期，请重新登录' });
+  }
+  next();
+}
+
+app.get('/api/sync/:user', requireSync, async (req, res) => {
   const user = String(req.params.user || '').trim();
   if (!validSyncUser(user)) return res.status(400).json({ ok: false, msg: '账号格式不支持同步' });
   try {
@@ -470,7 +484,7 @@ app.get('/api/sync/:user', async (req, res) => {
   }
 });
 
-app.put('/api/sync/:user', async (req, res) => {
+app.put('/api/sync/:user', requireSync, async (req, res) => {
   const user = String(req.params.user || '').trim();
   if (!validSyncUser(user)) return res.status(400).json({ ok: false, msg: '账号格式不支持同步' });
   const state = req.body && req.body.state;
@@ -496,7 +510,7 @@ app.put('/api/sync/:user', async (req, res) => {
   }
 });
 
-app.delete('/api/sync/:user', async (req, res) => {
+app.delete('/api/sync/:user', requireSync, async (req, res) => {
   const user = String(req.params.user || '').trim();
   if (!validSyncUser(user)) return res.status(400).json({ ok: false, msg: '账号格式不支持同步' });
   try {

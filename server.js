@@ -65,7 +65,6 @@ function validInvite(code) {
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'shiyi@2026';
 const ADMIN_SECRET = process.env.ADMIN_SECRET || crypto.randomBytes(24).toString('hex');
 const ADMIN_DATA_FILE = path.join(path.dirname(SYNC_DIR), 'admin.json');
-const ADMIN_TOKENS = new Map(); // token → { createdAt }
 const ADMIN_TOKEN_TTL = 12 * 3600 * 1000; // 12 小时
 
 function readAdminData() {
@@ -74,6 +73,10 @@ function readAdminData() {
     const d = JSON.parse(raw);
     if (!d.codes) d.codes = [];
     if (!d.users) d.users = [];
+    if (!d.tokens) d.tokens = [];
+    // 清理过期 token
+    const now = Date.now();
+    d.tokens = d.tokens.filter(t => now - t.createdAt < ADMIN_TOKEN_TTL);
     return d;
   } catch (e) {
     // 首次初始化：把默认邀请码落盘
@@ -88,7 +91,8 @@ function readAdminData() {
         enabled: true,
         source: 'default'
       })),
-      users: []
+      users: [],
+      tokens: []
     };
     try {
       fs.mkdirSync(path.dirname(ADMIN_DATA_FILE), { recursive: true });
@@ -105,15 +109,23 @@ function writeAdminData(d) {
 }
 function generateToken() {
   const t = crypto.randomBytes(16).toString('hex');
-  ADMIN_TOKENS.set(t, { createdAt: Date.now() });
+  try {
+    const admin = readAdminData();
+    admin.tokens.push({ token: t, createdAt: Date.now() });
+    writeAdminData(admin);
+  } catch (e) { /* 忽略存储失败 */ }
   return t;
 }
 function requireAdmin(req, res, next) {
   const auth = req.headers['x-admin-token'] || String((req.query && req.query.token) || '');
-  const info = ADMIN_TOKENS.get(auth);
-  if (!auth || !info) return res.status(401).json({ ok: false, msg: '请先登录管理员' });
-  if (Date.now() - info.createdAt > ADMIN_TOKEN_TTL) {
-    ADMIN_TOKENS.delete(auth);
+  if (!auth) return res.status(401).json({ ok: false, msg: '请先登录管理员' });
+  let admin;
+  try { admin = readAdminData(); } catch (e) { return res.status(500).json({ ok: false, msg: '服务异常' }); }
+  const entry = admin.tokens.find(t => t.token === auth);
+  if (!entry) return res.status(401).json({ ok: false, msg: '请先登录管理员' });
+  if (Date.now() - entry.createdAt > ADMIN_TOKEN_TTL) {
+    admin.tokens = admin.tokens.filter(t => t.token !== auth);
+    try { writeAdminData(admin); } catch (e) {}
     return res.status(401).json({ ok: false, msg: '管理员登录已过期，请重新登录' });
   }
   next();
@@ -250,7 +262,11 @@ app.post('/api/admin/login', (req, res) => {
 });
 app.post('/api/admin/logout', requireAdmin, (req, res) => {
   const auth = req.headers['x-admin-token'] || '';
-  ADMIN_TOKENS.delete(auth);
+  try {
+    const admin = readAdminData();
+    admin.tokens = admin.tokens.filter(t => t.token !== auth);
+    writeAdminData(admin);
+  } catch (e) { /* 忽略 */ }
   res.json({ ok: true });
 });
 

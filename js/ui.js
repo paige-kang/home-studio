@@ -302,7 +302,7 @@ function parsePastedMetrics(text) {
 /* ---------------- 卡片 / 看板 / 表格 / 图库 ---------------- */
 function cardThumb(item, schema) {
   const src = schema.img ? item[schema.img] : '';
-  if (isURL(src)) return `<img class="bcard-thumb" src="${esc(src)}" alt="">`;
+  if (isURL(src) || (typeof src === 'string' && src.startsWith('data:'))) return `<img class="bcard-thumb" src="${esc(src)}" alt="">`;
   const ch = String(item[schema.title] || '拾').slice(0, 1);
   return `<span class="bcard-thumb grad-${hashOf(item.id)}">${esc(ch)}</span>`;
 }

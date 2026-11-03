@@ -1,5 +1,5 @@
 /* eslint-disable */
-const CACHE = 'home-studio-v1';
+const CACHE = 'home-studio-v2';
 const ASSETS = [
   './',
   './index.html',

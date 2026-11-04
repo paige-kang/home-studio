@@ -468,6 +468,8 @@ const Store = {
   },
   clearAll() {
     this.dataKeys.forEach(k => { this.state[k] = []; });
+    this.state.settings = this.state.settings || {};
+    this.state.settings.cleared = true;
     this.save();
   },
   exportDocument() {

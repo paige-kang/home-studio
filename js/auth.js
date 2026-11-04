@@ -67,9 +67,26 @@ const Auth = {
     if (readAccounts().some(a => String(a.email || '').toLowerCase() === email)) return { ok: false, msg: '这个邮箱已注册过，直接登录即可' };
     if (this.findAccount(user)) return { ok: false, msg: '这个账号已存在，换一个或直接登录' };
     const list = readAccounts();
-    list.push({ user, pass, name: name || user, email });
+    list.push({ user, pass, name: name || user, email, surveyed: false });
     saveAccounts(list);
     return { ok: true, session: this.persist(user, name || user, remember) };
+  },
+  isSurveyed(user) {
+    const acc = this.findAccount(user);
+    return acc ? !!acc.surveyed : false;
+  },
+  markSurveyed(user, survey) {
+    const list = readAccounts();
+    const acc = list.find(a => a.user === user);
+    if (acc) {
+      acc.surveyed = true;
+      acc.survey = survey || {};
+      saveAccounts(list);
+    }
+  },
+  getSurvey(user) {
+    const acc = this.findAccount(user);
+    return acc ? (acc.survey || {}) : {};
   },
   resetPassword(user, pass) {
     user = String(user || '').trim();

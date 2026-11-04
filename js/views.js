@@ -1,5 +1,5 @@
 /* ---------------- 页面状态 ---------------- */
-const PAGE = { route: 'dashboard', query: '', filter: '全部', loanFilter: '全部', view: {}, sort: null, selected: {}, visibleIds: [], calDate: null, calMode: 'month' };
+const PAGE = { route: 'dashboard', query: '', filter: '全部', loanFilter: '全部', view: {}, sort: null, selected: {}, visibleIds: [], calDate: null, calMode: 'month', ideasTab: 'mine' };
 const READONLY = ['ideas', 'deals'];
 const LOAN_FILTERS = ['全部', '已借出', '未借出', '已归还'];
 
@@ -203,7 +203,7 @@ function weekTodoSet() {
     const done = inWeek.filter(x => x.done === '已完成');
     return { items: [...open, ...done].slice(0, 5), total: inWeek.length, doneCount: done.length, demo: false };
   }
-  if (all.length) return { items: [], total: 0, doneCount: 0, demo: false };
+  if (all.length || Store.state.settings.cleared) return { items: [], total: 0, doneCount: 0, demo: false };
   const demoItems = WEEK_DEMO_TODOS.map(x => ({ ...x, due: D.addOn(todayIso, x.dueOffset), done: x.done || !!DASH_SIM.demoDone[x.id] }));
   const open = demoItems.filter(x => !x.done);
   const done = demoItems.filter(x => x.done);
@@ -401,12 +401,33 @@ function renderPage(key) {
   const readonly = Store.state.settings.assistant && READONLY.includes(key);
   const items = Store.list(key);
 
-  document.getElementById('pgTitle').textContent = s.label;
-  document.getElementById('pgDesc').textContent = s.desc;
-  document.getElementById('pgActions').innerHTML = `
+  // 选题库：我的选题 / 热门选题 tab
+  const isIdeas = key === 'ideas';
+  const ideasTab = isIdeas ? (PAGE.ideasTab || 'mine') : '';
+
+  document.getElementById('pgTitle').textContent = isIdeas ? '选题库' : s.label;
+  document.getElementById('pgDesc').textContent = isIdeas && ideasTab === 'trending'
+    ? '实时匹配网络热门选题，一键采纳到你的灵感池。' : s.desc;
+  document.getElementById('pgActions').innerHTML = isIdeas
+    ? (ideasTab === 'mine'
+        ? `${readonly ? '' : `<button class="btn btn-primary" data-act="new" data-key="ideas"><svg class="ni"><use href="#i-plus"/></svg>新建选题</button>`}`
+        : `<span class="soft-pill">根据你的调研偏好匹配</span>`)
+    : `
     ${readonly ? '<span class="soft-pill">助理模式 · 只读</span>' : ''}
     ${s.template && !readonly ? `<button class="btn btn-ghost" data-act="template"><svg class="ni"><use href="#i-spark"/></svg>模板新建</button>` : ''}
     ${!readonly ? `<button class="btn btn-primary" data-act="new" data-key="${key}"><svg class="ni"><use href="#i-plus"/></svg>新建${NEW_LABELS[key] || ''}</button>` : ''}`;
+
+  const tabsHtml = isIdeas ? `<div class="seg" id="ideasTabs">
+      <button class="${ideasTab === 'mine' ? 'is-active' : ''}" data-ideas-tab="mine">我的选题</button>
+      <button class="${ideasTab === 'trending' ? 'is-active' : ''}" data-ideas-tab="trending">🔥 热门选题</button>
+    </div>` : '';
+
+  if (isIdeas && ideasTab === 'trending') {
+    document.getElementById('pgSummary').innerHTML = '';
+    document.getElementById('pgToolbar').innerHTML = tabsHtml;
+    renderTrendingIdeas();
+    return;
+  }
 
   // 汇总区
   const summary = document.getElementById('pgSummary');
@@ -422,6 +443,7 @@ function renderPage(key) {
     ? `<div class="filter-chips loan-chips"><span class="chip-label">借出</span>${LOAN_FILTERS.map(st => `<button class="chip ${PAGE.loanFilter === st ? 'is-active' : ''}" data-act="loan-filter" data-status="${esc(st)}">${esc(st)}</button>`).join('')}</div>` : '';
 
   document.getElementById('pgToolbar').innerHTML = `
+    ${tabsHtml}
     ${s.views.length > 1 ? renderViewSwitcher(s, view) : ''}
     <label class="search-box"><svg><use href="#i-search"/></svg><input id="pageSearch" type="text" placeholder="搜索${s.label}" value="${esc(PAGE.query)}"></label>
     ${filterChips}
@@ -464,6 +486,89 @@ function renderPage(key) {
   }
   bindDrag();
   updateSidebar();
+}
+
+/* ---------------- 热门选题 ---------------- */
+function trendingDirection(domain) {
+  const map = {
+    '家居好物': '好物分享', '美妆护肤': '好物分享', '穿搭时尚': '好物分享',
+    '美食探店': '好物分享', '数码科技': '好物分享', '母婴亲子': '好物分享',
+    '萌宠日常': '好物分享', '旅行攻略': '改造分享', '健身运动': '教程干货',
+    '读书学习': '知识科普'
+  };
+  return map[domain] || '好物分享';
+}
+
+async function renderTrendingIdeas() {
+  const body = document.getElementById('pgBody');
+  body.innerHTML = `<div class="trending-empty">正在抓取热门选题…</div>`;
+  let items = [];
+  try {
+    const res = await fetch('/api/trending', { cache: 'no-store' });
+    const data = await res.json();
+    if (data && Array.isArray(data.items)) items = data.items;
+  } catch (e) {
+    body.innerHTML = `<div class="trending-empty">热门选题加载失败，请稍后再试。</div>`;
+    return;
+  }
+  if (!items.length) {
+    body.innerHTML = `<div class="trending-empty">暂无热门选题，稍后再来看看。</div>`;
+    return;
+  }
+
+  // 用用户调研结果排序：匹配 domain/style 的排前面
+  const survey = (typeof Auth !== 'undefined' && Auth.current())
+    ? (Auth.getSurvey(Auth.current().user) || {}) : {};
+  const userDomains = Array.isArray(survey.domain) ? survey.domain : [];
+  const userStyles = Array.isArray(survey.style) ? survey.style : [];
+  const score = it => {
+    let s = it.hot;
+    if (userDomains.includes(it.domain)) s += 50;
+    if (userStyles.includes(it.style)) s += 30;
+    return s;
+  };
+  items = items.slice().sort((a, b) => score(b) - score(a));
+
+  // 已采纳的标题去重
+  const adoptedTitles = new Set(Store.list('ideas').map(i => String(i.title || '').trim()));
+
+  body.innerHTML = `<div class="trending-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">
+    ${items.map(it => {
+      const adopted = adoptedTitles.has(String(it.title || '').trim());
+      return `<div class="trending-card">
+        <div class="trending-hot">🔥 热度 ${it.hot}</div>
+        <div class="trending-title">${esc(it.title)}</div>
+        <div class="trending-meta">
+          <span class="tag" style="background:var(--accent-soft);color:var(--accent-deep)">${esc(it.domain)}</span>
+          <span class="tag">${esc(it.style)}</span>
+        </div>
+        <div class="trending-tags">${(it.tags || []).map(t => '#' + esc(t)).join(' ')}</div>
+        <div class="trending-actions">
+          <button class="btn btn-primary btn-xs" data-adopt="${esc(it.title)}"${adopted ? ' disabled' : ''}>${adopted ? '已采纳' : '采纳到选题库'}</button>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+
+  body.querySelectorAll('[data-adopt]').forEach(btn => {
+    btn.onclick = () => {
+      if (btn.disabled) return;
+      const title = btn.dataset.adopt;
+      const src = items.find(x => x.title === title);
+      if (!src) return;
+      Store.add('ideas', {
+        title: src.title,
+        direction: trendingDirection(src.domain),
+        styles: src.tags || [],
+        status: '灵感',
+        planDate: '',
+        note: `来自热门选题（${src.domain} · ${src.style}）`
+      });
+      btn.disabled = true;
+      btn.textContent = '已采纳';
+      toast(`已采纳：${src.title}`);
+    };
+  });
 }
 
 /* ---------------- 表格批量操作条 ---------------- */

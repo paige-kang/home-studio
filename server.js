@@ -273,6 +273,63 @@ app.get('/api/status', (req, res) => {
   res.json({ ok: true, mailConfigured: configured });
 });
 
+// —— 热门选题推荐 ——
+const TRENDING_IDEAS = [
+  // 家居好物
+  { domain: '家居好物', title: '2026 最值得入的 10 件家居好物', hot: 98, tags: ['好物推荐', '家居'], style: '种草推荐' },
+  { domain: '家居好物', title: '出租屋 500 元软装改造全记录', hot: 87, tags: ['出租屋', '改造'], style: '改造分享' },
+  { domain: '家居好物', title: '拼多多 9.9 包邮的家居神器测评', hot: 76, tags: ['平价', '测评'], style: '好物测评' },
+  { domain: '家居好物', title: '宜家隐藏款好物｜不买后悔系列', hot: 92, tags: ['宜家', '好物'], style: '种草推荐' },
+  { domain: '家居好物', title: '小户型收纳｜空间翻倍的秘密', hot: 81, tags: ['收纳', '小户型'], style: '教程干货' },
+  // 美妆护肤
+  { domain: '美妆护肤', title: '早 C 晚 A 一个月真实对比', hot: 95, tags: ['护肤', '早C晚A'], style: '好物测评' },
+  { domain: '美妆护肤', title: '油皮亲妈底妆｜持妆 12 小时实测', hot: 88, tags: ['底妆', '油皮'], style: '好物测评' },
+  { domain: '美妆护肤', title: '国货美妆崛起｜这些不输大牌', hot: 79, tags: ['国货', '美妆'], style: '种草推荐' },
+  { domain: '美妆护肤', title: '换季烂脸急救指南', hot: 84, tags: ['换季', '护肤'], style: '教程干货' },
+  // 穿搭时尚
+  { domain: '穿搭时尚', title: '秋冬通勤穿搭｜一周不重样', hot: 90, tags: ['通勤', '秋冬'], style: '种草推荐' },
+  { domain: '穿搭时尚', title: '微胖女生显瘦穿搭公式', hot: 93, tags: ['微胖', '显瘦'], style: '教程干货' },
+  { domain: '穿搭时尚', title: '平价穿出高级感｜配色技巧', hot: 77, tags: ['配色', '平价'], style: '教程干货' },
+  // 美食探店
+  { domain: '美食探店', title: '本地人私藏的 10 家苍蝇馆子', hot: 91, tags: ['探店', '苍蝇馆子'], style: 'Vlog日常' },
+  { domain: '美食探店', title: '空气炸锅食谱｜懒人必备', hot: 86, tags: ['空气炸锅', '食谱'], style: '教程干货' },
+  { domain: '美食探店', title: '咖啡店打卡｜氛围感出片指南', hot: 74, tags: ['咖啡', '打卡'], style: 'Vlog日常' },
+  // 数码科技
+  { domain: '数码科技', title: '2026 年度手机推荐｜各价位段', hot: 89, tags: ['手机', '推荐'], style: '好物测评' },
+  { domain: '数码科技', title: 'iPhone 隐藏技巧｜效率翻倍', hot: 82, tags: ['iPhone', '技巧'], style: '教程干货' },
+  { domain: '数码科技', title: '百元好物｜提升幸福感的数码配件', hot: 78, tags: ['配件', '平价'], style: '种草推荐' },
+  // 母婴亲子
+  { domain: '母婴亲子', title: '新手妈妈必囤清单｜不踩雷', hot: 94, tags: ['待产包', '清单'], style: '种草推荐' },
+  { domain: '母婴亲子', title: '宝宝辅食添加全攻略', hot: 83, tags: ['辅食', '攻略'], style: '教程干货' },
+  { domain: '母婴亲子', title: '带娃出行必备好物', hot: 75, tags: ['出行', '好物'], style: '种草推荐' },
+  // 萌宠日常
+  { domain: '萌宠日常', title: '猫咪化毛膏测评｜哪款最有效', hot: 80, tags: ['猫咪', '测评'], style: '好物测评' },
+  { domain: '萌宠日常', title: '狗狗新手养狗指南', hot: 77, tags: ['狗狗', '新手'], style: '教程干货' },
+  { domain: '萌宠日常', title: '宠物用品平价替代', hot: 72, tags: ['平价', '用品'], style: '种草推荐' },
+  // 旅行攻略
+  { domain: '旅行攻略', title: '小众旅行地｜人少景美', hot: 85, tags: ['小众', '攻略'], style: 'Vlog日常' },
+  { domain: '旅行攻略', title: '穷游攻略｜2000 元玩遍某城', hot: 79, tags: ['穷游', '攻略'], style: '教程干货' },
+  { domain: '旅行攻略', title: '旅行拍照姿势｜出片率 100%', hot: 88, tags: ['拍照', '姿势'], style: '教程干货' },
+  // 健身运动
+  { domain: '健身运动', title: '居家健身｜30 天塑形计划', hot: 86, tags: ['居家', '塑形'], style: '教程干货' },
+  { domain: '健身运动', title: '减脂餐食谱｜好吃不胖', hot: 90, tags: ['减脂餐', '食谱'], style: '教程干货' },
+  { domain: '健身运动', title: '马甲线养成记｜每天 10 分钟', hot: 81, tags: ['马甲线', '教程'], style: '教程干货' },
+  // 读书学习
+  { domain: '读书学习', title: '2026 年度书单｜改变认知的 10 本书', hot: 78, tags: ['书单', '推荐'], style: '知识科普' },
+  { domain: '读书学习', title: '高效学习法｜学霸都在用', hot: 74, tags: ['学习方法', '高效'], style: '教程干货' },
+  { domain: '读书学习', title: '读书笔记模板｜这样读书记得牢', hot: 71, tags: ['笔记', '模板'], style: '教程干货' },
+];
+
+app.get('/api/trending', (req, res) => {
+  const domain = String(req.query.domain || '').trim();
+  const style = String(req.query.style || '').trim();
+  let list = [...TRENDING_IDEAS];
+  if (domain) list = list.filter(i => i.domain === domain);
+  if (style) list = list.filter(i => i.style === style);
+  list.sort((a, b) => b.hot - a.hot);
+  res.json({ ok: true, items: list.slice(0, 30) });
+});
+
 // 内测邀请码校验
 app.post('/api/verify-invite', (req, res) => {
   const invite = String((req.body && req.body.invite) || '').trim();

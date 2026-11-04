@@ -57,12 +57,98 @@ function syncUserAvatar() {
     el.classList.add('has-img');
     el.style.background = 'none';
     el.innerHTML = `<img src="${p.avatar}" alt="">`;
+    syncBrand(name, p.avatar);
     return;
   }
   el.classList.remove('has-img');
   const g = typeof Profile !== 'undefined' ? Profile.grad(p.avatar) : null;
   el.style.background = g ? `linear-gradient(145deg,${g[0]},${g[1]})` : '';
   el.textContent = typeof Profile !== 'undefined' ? Profile.initial(name) : String(name).slice(0, 1);
+  syncBrand(name, g ? `linear-gradient(145deg,${g[0]},${g[1]})` : '');
+}
+
+function syncBrand(name, bgOrImg) {
+  const logo = document.querySelector('.brand .logo');
+  const brandStrong = document.querySelector('.brand-text strong');
+  if (logo) {
+    if (bgOrImg && typeof bgOrImg === 'string' && bgOrImg.startsWith('data:')) {
+      logo.style.background = `url("${bgOrImg}") center/cover`;
+      logo.textContent = '';
+    } else {
+      logo.style.background = bgOrImg || '';
+      logo.textContent = String(name || '拾').slice(0, 1);
+    }
+  }
+  if (brandStrong) brandStrong.textContent = `${name || '拾一'}的工作台`;
+  document.title = `${name || '拾一'} · 家居创作工作台 · 内测版`;
+}
+
+/* ---------------- 新用户调研 ---------------- */
+const SURVEY_OPTIONS = {
+  domain: ['家居好物', '美妆护肤', '穿搭时尚', '美食探店', '数码科技', '母婴亲子', '萌宠日常', '旅行攻略', '健身运动', '读书学习'],
+  platform: ['小红书', '抖音', 'B站', '微博', '知乎', '公众号', '视频号'],
+  style: ['种草推荐', '好物测评', '改造分享', '教程干货', 'Vlog日常', '剧情演绎', '知识科普'],
+  audience: ['18-24 学生党', '25-30 职场新人', '30+ 宝妈', '男性用户', '全年龄通用']
+};
+function showSurvey() {
+  const chipGroup = (key, label, multi) => {
+    const opts = SURVEY_OPTIONS[key];
+    return `<div class="survey-q"><label>${label}${multi ? '（可多选）' : ''}</label>
+      <div class="chip-group" data-survey="${key}" data-multi="${multi ? 1 : 0}">
+        ${opts.map(o => `<button type="button" class="chip" data-val="${esc(o)}">${esc(o)}</button>`).join('')}
+      </div></div>`;
+  };
+  const root = document.getElementById('modalRoot');
+  root.innerHTML = `<div class="modal-mask"></div><div class="modal md">
+    <div class="modal-head"><h3>欢迎来到工作台 ✨</h3></div>
+    <div class="modal-body">
+      <p class="survey-intro">花 20 秒告诉我们你的创作方向，我们会为你推荐更匹配的热门选题。</p>
+      ${chipGroup('domain', '你主要做什么领域？', true)}
+      ${chipGroup('platform', '主要发布平台？', true)}
+      ${chipGroup('style', '偏好的内容风格？', true)}
+      ${chipGroup('audience', '目标受众是？', false)}
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" data-skip>先跳过</button>
+      <button class="btn btn-primary" data-submit>开始使用</button>
+    </div>
+  </div>`;
+  root.classList.add('open');
+  const sel = {};
+  root.querySelectorAll('.chip-group').forEach(g => {
+    const key = g.dataset.survey;
+    const multi = g.dataset.multi === '1';
+    sel[key] = [];
+    g.querySelectorAll('.chip').forEach(chip => {
+      chip.onclick = () => {
+        const v = chip.dataset.val;
+        if (multi) {
+          chip.classList.toggle('is-active');
+          sel[key] = [...g.querySelectorAll('.chip.is-active')].map(c => c.dataset.val);
+        } else {
+          g.querySelectorAll('.chip').forEach(c => c.classList.remove('is-active'));
+          chip.classList.add('is-active');
+          sel[key] = [v];
+        }
+      };
+    });
+  });
+  const close = () => { root.classList.remove('open'); root.innerHTML = ''; };
+  root.querySelector('[data-skip]').onclick = () => {
+    if (typeof Auth !== 'undefined') Auth.markSurveyed(Auth.current().user, { skipped: true });
+    close(); toast('已跳过，可随时在「我的」里补充');
+  };
+  root.querySelector('[data-submit]').onclick = () => {
+    const survey = {
+      domain: sel.domain || [],
+      platform: sel.platform || [],
+      style: sel.style || [],
+      audience: (sel.audience && sel.audience[0]) || ''
+    };
+    if (typeof Auth !== 'undefined') Auth.markSurveyed(Auth.current().user, survey);
+    close(); toast('调研完成，正在为你推荐热门选题');
+    if (typeof renderTrendingIdeas === 'function') renderTrendingIdeas();
+  };
 }
 
 /* ---------------- 模板 ---------------- */
@@ -401,6 +487,8 @@ function handleAction(el) {
 
 document.addEventListener('click', e => {
   if (e.target.closest('a[href]')) return;
+  const ideasTab = e.target.closest('[data-ideas-tab]');
+  if (ideasTab) { PAGE.ideasTab = ideasTab.dataset.ideasTab; renderPage('ideas'); return; }
   const el = e.target.closest('[data-act]');
   if (el) { handleAction(el); return; }
   const go = e.target.closest('[data-go]');
@@ -421,6 +509,10 @@ document.addEventListener('click', e => {
     if (typeof Profile !== 'undefined') Profile.applyFor(session.user);
   }
   syncUserAvatar();
+  // 新用户首次登录显示调研表
+  if (session && typeof Auth !== 'undefined' && !Auth.isSurveyed(session.user)) {
+    setTimeout(showSurvey, 600);
+  }
   document.getElementById('userChip').onclick = () => navigate('profile');
   document.getElementById('todayText').textContent = `${D.cnw(D.iso(t))} · 第 ${Math.ceil((t - new Date(t.getFullYear(), 0, 1)) / 86400000)} 天`;
   document.getElementById('quickNew').onclick = quickCreate;

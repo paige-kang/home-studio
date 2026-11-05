@@ -81,6 +81,19 @@ function syncBrand(name, bgOrImg) {
   }
   if (brandStrong) brandStrong.textContent = `${name || '拾一'}的工作台`;
   document.title = `${name || '拾一'} · 家居创作工作台 · 内测版`;
+  syncAppIdentity(name || '拾一');
+}
+
+/* 让「添加到主屏幕」的 App 名称和图标跟随当前登录用户 */
+function syncAppIdentity(name) {
+  const safeName = String(name || '我的').slice(0, 12);
+  const enc = encodeURIComponent(safeName);
+  const manifest = document.querySelector('link[rel="manifest"]');
+  if (manifest) manifest.href = `/api/manifest/${enc}`;
+  const touchIcon = document.querySelector('link[rel="apple-touch-icon"]');
+  if (touchIcon) touchIcon.href = `/api/icon/${enc}/192`;
+  const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+  if (appleTitle) appleTitle.setAttribute('content', `${safeName}的工作台`);
 }
 
 /* ---------------- 新用户调研 ---------------- */

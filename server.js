@@ -273,6 +273,215 @@ app.get('/api/status', (req, res) => {
   res.json({ ok: true, mailConfigured: configured });
 });
 
+/* ---------------- 服务端账号体系（跨设备登录） ---------------- */
+function passSalt() { return crypto.randomBytes(16).toString('hex'); }
+function hashPass(pass, salt) { return crypto.scryptSync(String(pass || ''), String(salt || ''), 32).toString('hex'); }
+function publicAccount(u) {
+  return {
+    user: u.user, name: u.name || u.user, email: u.email || '',
+    surveyed: !!u.surveyed, survey: u.survey || {}
+  };
+}
+function findAccountInAdmin(id) {
+  const key = String(id || '').trim();
+  if (!key) return { admin: null, account: null };
+  const admin = readAdminData();
+  const lower = key.toLowerCase();
+  const account = (admin.users || []).find(u =>
+    u.user === key || String(u.email || '').toLowerCase() === lower
+  ) || null;
+  return { admin, account };
+}
+function inviteValid(admin, code) {
+  const c = String(code || '').trim().toUpperCase();
+  if (!c) return { ok: false, msg: '请填写邀请码' };
+  const entry = (admin.codes || []).find(x => String(x.code).toUpperCase() === c);
+  if (!entry) return { ok: false, msg: '邀请码无效' };
+  if (entry.enabled === false) return { ok: false, msg: '邀请码已停用' };
+  if (entry.expiresAt && Date.now() > new Date(entry.expiresAt).getTime()) return { ok: false, msg: '邀请码已过期' };
+  if (entry.maxUses && (entry.uses || 0) >= entry.maxUses) return { ok: false, msg: '邀请码使用次数已达上限' };
+  return { ok: true, entry, code: c };
+}
+
+// 登录：跨设备统一校验
+app.post('/api/auth/login', (req, res) => {
+  const user = String((req.body && req.body.user) || '').trim();
+  const pass = String((req.body && req.body.pass) || '');
+  if (!user || !pass) return res.status(400).json({ ok: false, code: 'EMPTY', msg: '请输入账号和密码' });
+  let found;
+  try { found = findAccountInAdmin(user); } catch (e) { return res.status(500).json({ ok: false, code: 'SERVER', msg: '服务异常' }); }
+  const acc = found.account;
+  if (!acc || !acc.passHash) return res.status(404).json({ ok: false, code: 'NO_ACCOUNT', msg: '该账号尚未开启云端登录' });
+  if (acc.disabled) return res.status(403).json({ ok: false, code: 'DISABLED', msg: '该账号已被禁用，请联系管理员' });
+  if (acc.passHash !== hashPass(pass, acc.salt)) return res.status(401).json({ ok: false, code: 'BAD_PASS', msg: '密码不正确，请检查后重试' });
+  res.json({ ok: true, account: publicAccount(acc) });
+});
+
+// 注册 / 老账号迁移（邮箱已在管理员名单或邀请码有效即可）
+app.post('/api/auth/register', (req, res) => {
+  const body = req.body || {};
+  const user = String(body.user || '').trim();
+  const pass = String(body.pass || '');
+  const name = String(body.name || '').trim();
+  const email = String(body.email || '').trim().toLowerCase();
+  const invite = String(body.invite || '').trim().toUpperCase();
+  if (!user || user.length < 3) return res.status(400).json({ ok: false, code: 'INVALID', msg: '账号至少 3 个字符' });
+  if (!pass || pass.length < 6) return res.status(400).json({ ok: false, code: 'INVALID', msg: '密码至少 6 位' });
+  let admin;
+  try { admin = readAdminData(); } catch (e) { return res.status(500).json({ ok: false, code: 'SERVER', msg: '服务异常' }); }
+  const byUser = (admin.users || []).find(u => u.user === user);
+  const byEmail = email ? (admin.users || []).find(u => String(u.email || '').toLowerCase() === email) : null;
+  const existing = byUser || byEmail;
+  if (existing) {
+    if (existing.disabled) return res.status(403).json({ ok: false, code: 'DISABLED', msg: '该账号已被禁用，请联系管理员' });
+    if (existing.passHash) return res.status(409).json({ ok: false, code: 'EXISTS', msg: '这个账号已在云端注册，直接登录即可' });
+    if (byUser && !byEmail) {
+      // 同名新账号且没有任何邮箱登记记录：需要邀请码
+      const v = inviteValid(admin, invite);
+      if (!v.ok) return res.status(403).json({ ok: false, code: 'INVITE', msg: v.msg });
+    }
+    // 迁移老账号：补上密码
+    existing.user = user || existing.user;
+    existing.name = name || existing.name || existing.user;
+    existing.email = existing.email || email;
+    existing.salt = passSalt();
+    existing.passHash = hashPass(pass, existing.salt);
+    existing.updatedAt = new Date().toISOString();
+    writeAdminData(admin);
+    return res.json({ ok: true, migrated: true, account: publicAccount(existing) });
+  }
+  // 老账号迁移：本地已有账号首次联网登录时补建云端记录（body.migrate=true）
+  const isMigration = body.migrate === true;
+  const v = inviteValid(admin, invite);
+  if (!v.ok && !isMigration) return res.status(403).json({ ok: false, code: 'INVITE', msg: v.msg });
+  const entry = {
+    email, user, name: name || user, inviteUsed: v.ok ? invite : 'migrated',
+    registeredAt: new Date().toISOString(), createdAt: new Date().toISOString(),
+    disabled: false, note: isMigration && !v.ok ? '本地账号迁移' : '', surveyed: false, survey: {},
+    salt: passSalt()
+  };
+  entry.passHash = hashPass(pass, entry.salt);
+  admin.users.push(entry);
+  if (v.ok && v.entry) v.entry.uses = (v.entry.uses || 0) + 1;
+  writeAdminData(admin);
+  res.json({ ok: true, account: publicAccount(entry) });
+});
+
+// 重置密码（跨设备生效）
+app.post('/api/auth/reset', (req, res) => {
+  const user = String((req.body && req.body.user) || '').trim();
+  const pass = String((req.body && req.body.pass) || '');
+  if (!user || pass.length < 6) return res.status(400).json({ ok: false, code: 'INVALID', msg: '请填写账号，新密码至少 6 位' });
+  let found;
+  try { found = findAccountInAdmin(user); } catch (e) { return res.status(500).json({ ok: false, code: 'SERVER', msg: '服务异常' }); }
+  const acc = found.account;
+  if (!acc) return res.status(404).json({ ok: false, code: 'NO_ACCOUNT', msg: '没有找到这个账号' });
+  acc.salt = passSalt();
+  acc.passHash = hashPass(pass, acc.salt);
+  acc.updatedAt = new Date().toISOString();
+  writeAdminData(found.admin);
+  res.json({ ok: true });
+});
+
+// 调研偏好同步（让任何设备都能拿到选题匹配依据）
+app.post('/api/auth/survey', (req, res) => {
+  const user = String((req.body && req.body.user) || '').trim();
+  const survey = (req.body && req.body.survey) || {};
+  if (!user) return res.status(400).json({ ok: false, msg: '缺少账号' });
+  let found;
+  try { found = findAccountInAdmin(user); } catch (e) { return res.status(500).json({ ok: false, msg: '服务异常' }); }
+  const acc = found.account;
+  if (!acc) return res.status(404).json({ ok: false, msg: '账号不存在' });
+  acc.surveyed = true;
+  acc.survey = typeof survey === 'object' ? survey : {};
+  acc.surveyAt = new Date().toISOString();
+  writeAdminData(found.admin);
+  res.json({ ok: true });
+});
+
+/* ---------------- 每个用户独立的 App 图标 / 名称 ---------------- */
+let sharpLib = null;
+try { sharpLib = require('sharp'); } catch (e) { sharpLib = null; }
+const ICON_PALETTES = [
+  ['#D8B894', '#9B7656'], ['#B7C9D8', '#5F7D96'], ['#E3C6C8', '#A96B70'],
+  ['#C7D6BC', '#6E8B5E'], ['#D9C9E0', '#7D6A96'], ['#E9D3B4', '#B08A55'],
+  ['#BBD8D4', '#4F8C86'], ['#DDCBBC', '#8E735C']
+];
+function xmlEsc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function iconInitial(name) {
+  const chars = Array.from(String(name || '').trim());
+  return chars.length ? chars[0] : '拾';
+}
+function paletteFor(name) {
+  let h = 0;
+  for (const ch of String(name || '')) h = (h * 31 + ch.codePointAt(0)) % 997;
+  return ICON_PALETTES[h % ICON_PALETTES.length];
+}
+function iconSvg(name, size) {
+  const [c1, c2] = paletteFor(name);
+  const initial = xmlEsc(iconInitial(name));
+  const fs = size >= 512 ? 150 : 150;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 512 512">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/>
+  </linearGradient></defs>
+  <rect width="512" height="512" fill="url(#g)"/>
+  <g fill="#fff" opacity="0.9" transform="translate(256 128) scale(0.42)">
+    <path d="M -120 30 L -60 -30 L 0 -90 L 60 -30 L 120 30 L 120 120 L -120 120 Z"
+          fill="none" stroke="#fff" stroke-width="22" stroke-linejoin="round" stroke-linecap="round"/>
+    <rect x="-26" y="34" width="52" height="86" rx="6" fill="#fff"/>
+  </g>
+  <text x="256" y="360" text-anchor="middle" font-family="-apple-system,'PingFang SC','Noto Sans CJK SC','Helvetica Neue',sans-serif"
+        font-weight="700" font-size="${fs}" fill="#fff">${initial}</text>
+</svg>`;
+}
+const ICON_CACHE = new Map();
+async function iconPng(name, size) {
+  const key = name + '|' + size;
+  if (ICON_CACHE.has(key)) return ICON_CACHE.get(key);
+  if (!sharpLib) return null;
+  const buf = await sharpLib(Buffer.from(iconSvg(name, size))).png().toBuffer();
+  ICON_CACHE.set(key, buf);
+  return buf;
+}
+app.get('/api/icon/:name/:size', async (req, res) => {
+  const name = String(req.params.name || '').trim().slice(0, 12);
+  let size = parseInt(req.params.size, 10);
+  if (![192, 512].includes(size)) size = 192;
+  try {
+    const png = await iconPng(name, size);
+    if (!png) return res.redirect('/icons/icon-' + size + '.png');
+    res.set('Content-Type', 'image/png');
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(png);
+  } catch (err) {
+    res.redirect('/icons/icon-' + size + '.png');
+  }
+});
+app.get('/api/manifest/:name', (req, res) => {
+  const name = String(req.params.name || '').trim().slice(0, 12) || '我的';
+  const enc = encodeURIComponent(name);
+  res.type('application/manifest+json').json({
+    name: `${name}的工作台`,
+    short_name: name,
+    description: `${name}的小红书创作中控台：选题、样品、拍摄、发布、复盘。`,
+    start_url: '/index.html',
+    scope: '/',
+    display: 'standalone',
+    orientation: 'portrait-primary',
+    background_color: '#F7F5F1',
+    theme_color: '#B58C6B',
+    lang: 'zh-CN',
+    icons: [
+      { src: `/api/icon/${enc}/192`, sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: `/api/icon/${enc}/512`, sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: `/api/icon/${enc}/512`, sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+    ]
+  });
+});
+
 // —— 热门选题推荐 ——
 const TRENDING_IDEAS = [
   // 家居好物

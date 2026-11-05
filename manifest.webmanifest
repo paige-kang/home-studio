@@ -1,7 +1,7 @@
 {
-  "name": "拾一的家居工作台",
+  "name": "家居工作台",
   "short_name": "家居工作台",
-  "description": "小红书家居博主的选题、样品、拍摄、发布、复盘中控台。",
+  "description": "小红书创作者的选题、样品、拍摄、发布、复盘中控台。登录后名称与图标会自动适配你的昵称。",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

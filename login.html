@@ -14,8 +14,8 @@
 <script>
 try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.documentElement.setAttribute('data-theme', __th); } catch (e) { }
 </script>
-<link rel="stylesheet" href="css/base.css?v=2026103120">
-<link rel="stylesheet" href="css/auth.css?v=2026103120">
+<link rel="stylesheet" href="css/base.css?v=2026110501">
+<link rel="stylesheet" href="css/auth.css?v=2026110501">
 </head>
 <body class="auth-body">
 <main class="auth-card">
@@ -82,7 +82,7 @@ try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.d
   </div>
 </div>
 
-<script src="js/auth.js?v=2026103120"></script>
+<script src="js/auth.js?v=2026110501"></script>
 <script>
 (function () {
   const form = document.getElementById('loginForm');
@@ -113,10 +113,13 @@ try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.d
     userEl.focus();
   });
 
-  form.addEventListener('submit', e => {
+  form.addEventListener('submit', async e => {
     e.preventDefault();
     clearLoginMsg();
-    const res = Auth.login(userEl.value, passEl.value, rememberEl.checked);
+    const btn = form.querySelector('.auth-submit');
+    if (btn) { btn.disabled = true; btn.textContent = '登录中…'; }
+    const res = await Auth.login(userEl.value, passEl.value, rememberEl.checked);
+    if (btn) { btn.disabled = false; btn.textContent = '进入工作台'; }
     if (!res.ok) {
       msgEl.textContent = res.msg;
       passEl.focus();
@@ -193,9 +196,9 @@ try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.d
     if (resetUser) resetUser.value = userEl.value.trim();
     const resetForm = modalBody.querySelector('#resetForm');
     if (resetForm) {
-      resetForm.addEventListener('submit', e => {
+      resetForm.addEventListener('submit', async e => {
         e.preventDefault();
-        const res = Auth.resetPassword(modalBody.querySelector('#resetUser').value, modalBody.querySelector('#resetPass').value);
+        const res = await Auth.resetPassword(modalBody.querySelector('#resetUser').value, modalBody.querySelector('#resetPass').value);
         const msg = modalBody.querySelector('#resetMsg');
         if (!res.ok) { msg.textContent = res.msg; return; }
         userEl.value = modalBody.querySelector('#resetUser').value.trim();
@@ -279,8 +282,8 @@ try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.d
         if (!user || user.length < 3) { msg.textContent = '账号至少 3 个字符'; return; }
         if (!pass || pass.length < 6) { msg.textContent = '密码至少 6 位'; return; }
 
-        const doRegister = (verifiedEmail) => {
-          const res = Auth.register(user, pass, name || user, rememberEl.checked, verifiedEmail || '');
+        const doRegister = async (verifiedEmail) => {
+          const res = await Auth.register(user, pass, name || user, rememberEl.checked, verifiedEmail || '', invite);
           if (!res.ok) { msg.textContent = res.msg; return false; }
           if (codeTimer) { clearInterval(codeTimer); codeTimer = null; }
           location.replace('index.html');
@@ -296,7 +299,7 @@ try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.d
               body: JSON.stringify({ email, code, invite, user })
             });
             const data = await r.json().catch(() => ({}));
-            if (r.ok && data.ok) { doRegister(email); return; }
+            if (r.ok && data.ok) { await doRegister(email); return; }
             msg.textContent = data.msg || '验证码校验失败';
             return;
           } catch (err) {
@@ -328,7 +331,7 @@ try { var __th = localStorage.getItem('xhs-home-theme-v1'); if (__th) document.d
         if (!email) {
           msg.textContent = '离线注册建议填一个邮箱留档，可跳过';
         }
-        doRegister(email);
+        await doRegister(email);
       });
     }
   }

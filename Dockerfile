@@ -31,6 +31,11 @@ COPY . .
 # Final stage for app image
 FROM base
 
+# 中文字体：用于动态生成每个用户专属的 App 图标（昵称首字）
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y fontconfig fonts-noto-cjk && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy built application
 COPY --from=build /app /app
 
